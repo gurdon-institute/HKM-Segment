@@ -62,13 +62,12 @@ private static final Font labelFont = new Font(Font.SANS_SERIF, Font.BOLD, 12);
 private static final BasicStroke dottedStroke = new BasicStroke( 0.5f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0f, new float[] {4f, 4f}, 0f );
 private JComboBox thresholdCombo;
 private ActionListener listener;
-private ImagePlus imp, proc, out;
+private ImagePlus imp, proc;
 private Calibration cal;
 private ResultsTable results;
-private RoiEnlarger enlarge = new RoiEnlarger();
 private ThresholdToSelection tts = new ThresholdToSelection();
 
-private double pixW, pixD, imax, minA, maxA, minV, threshold;
+private double pixW, pixD, minA, maxA, minV, threshold;
 private String unit;
 private String Vunit;
 private double minR = Prefs.get("HKM_Segment.minR", 5.0);
@@ -78,7 +77,6 @@ private int W, H, C, Z, k;
 private int startK = (int)Prefs.get("HKM_Segment.startK", 10);
 private String thresholdMethod = Prefs.get("HKM_Segment.thresholdMethod", "None");
 private Color[] colours;
-private int[] histValues, histCounts;
 private double[] means;
 private ArrayList<Roi> cells;
 private boolean watershed = Prefs.get("HKM_Segment.watershed", false);
@@ -137,8 +135,8 @@ private static final String helpText = "<html>"+
 	}
 	
 	private void record(){
-		Recorder recorder = Recorder.getInstance();
-		if(recorder.record){
+		Recorder.getInstance();
+		if(Recorder.record){
 			String args = "startK="+startK+" blur="+sigma+" minR="+minR+" maxR="+maxR+" threshold="+thresholdMethod+" watershed="+watershed;
 			String rec = "run(\"HKM Segment\", \""+args+"\");\n";
 			Recorder.recordString(rec);
@@ -214,7 +212,7 @@ private static final String helpText = "<html>"+
 		for(int m=0; m<means.length; m++){
 			IJ.setThreshold(proc, means[m], Integer.MAX_VALUE);			//means in increasing order
 			for(int z=start;z<=end;z++){
-				proc.setPosition(channel, z, 1);
+				proc.setPositionWithoutUpdate(channel, z, 1);
 				ImageProcessor procip = proc.getProcessor();
 				procip.setColor(Color.BLACK);
 				
@@ -240,7 +238,7 @@ private static final String helpText = "<html>"+
 				
 				if(roi!=null){
 					Roi[] split = new ShapeRoi(roi).getRois();
-					if(split.length>10000){
+					if(split.length>50000){
 						String advice = "";
 						if(sigma<pixW){advice = "\nApplying a blur of half the minimum radius may give better results.";}
 						int ans = JOptionPane.showConfirmDialog(gui, split.length+" objects found in slice "+z+", continue?"+advice, "Continue?", JOptionPane.YES_NO_OPTION);
@@ -253,8 +251,8 @@ private static final String helpText = "<html>"+
 						if(sigma>pixW){
 							blurAdjust = (int)Math.floor(sigma/pixW);
 						}
-						r = enlarge.enlarge(r, -ed);
-						r = enlarge.enlarge(r, ed-blurAdjust);
+						r = RoiEnlarger.enlarge(r, -ed);
+						r = RoiEnlarger.enlarge(r, ed-blurAdjust);
 						if(onEdge(r)){
 							continue;
 						}
@@ -311,7 +309,7 @@ private static final String helpText = "<html>"+
 	
 	private Color[] makeColours(int n){	//generate n different colours
 		ArrayList<Color> colourList = new ArrayList<Color>();
-		//ColorProcessor cp = new ColorProcessor(n*4, 100);
+		//ColorProcessor cp = new ColorProcessor(n*4, 100);	//commented out code here is for displaying generated colours
 		float step = 3f/n;
 		//int x = 0;
 		for(float f=0f;f<=1f;f+=step){
@@ -329,69 +327,73 @@ private static final String helpText = "<html>"+
 	}
 	
 	private void output(ArrayList<Object3D> objects){
-		Color[] objectColours = makeColours(objects.size());
-		results = new ResultsTable();
-		if(IJ.isMacro()){ results = ResultsTable.getResultsTable(); }
-		results.setPrecision(3);
-		results.showRowNumbers(false);
-		Overlay ol = imp.getOverlay();
-		int row = results.getCounter();
-		int startC = imp.getChannel();
-		int startZ = imp.getSlice();
-		for(int i=0;i<objects.size();i++){
-			Object3D obj = objects.get(i);
-			double[] sum = new double[C+1];
-			int[] count = new int[C+1];
-			for(Roi roi : obj.rois){
-				imp.setRoi(roi);
-				int z = roi.getPosition();
-				for(int c=1;c<=C;c++){
-					imp.setPosition(c, z, 1);
-					ImageStatistics stats = imp.getStatistics();
-					sum[c] += stats.mean*stats.pixelCount;
-					count[c] += stats.pixelCount;
+		try{
+			imp.getWindow().setVisible(false);	
+			Color[] objectColours = makeColours(objects.size());
+			results = new ResultsTable();
+			if(IJ.isMacro()){ results = ResultsTable.getResultsTable(); }
+			results.setPrecision(3);
+			results.showRowNumbers(false);
+			Overlay ol = imp.getOverlay();
+			int row = results.getCounter();
+			int startC = imp.getChannel();
+			int startZ = imp.getSlice();
+			for(int i=0;i<objects.size();i++){
+				Object3D obj = objects.get(i);
+				double[] sum = new double[C+1];
+				int[] count = new int[C+1];
+				for(Roi roi : obj.rois){
+					imp.setRoi(roi);
+					int z = roi.getPosition();
+					for(int c=1;c<=C;c++){
+						imp.setPositionWithoutUpdate(c, z, 1);
+						ImageStatistics stats = imp.getStatistics();
+						sum[c] += stats.mean*stats.pixelCount;
+						count[c] += stats.pixelCount;
+					}
+					roi.setStrokeColor(objectColours[i]);
+					if(Z==1){
+						roi.setPosition(0, 0, 0);
+					}
+					ol.add(roi);
 				}
-				roi.setStrokeColor(objectColours[i]);
-				if(Z==1){
-					roi.setPosition(0, 0, 0);
-				}
-				ol.add(roi);
-			}
 
-			if(!IJ.isMacro()){
-				results.setValue("Index", row, i+1);
-				results.setValue("X", row, obj.centroid.x);
-				results.setValue("Y", row, obj.centroid.y);
-				results.setValue("Z", row, obj.centroid.z);
-				results.setValue("Volume"+Vunit, row, obj.volume);
-				for(int c=1;c<=C;c++){
-					double mean = sum[c]/count[c];
-					results.setValue("C"+c+" Mean", row, mean);
+				if(!IJ.isMacro()){
+					results.setValue("Index", row, i+1);
+					results.setValue("X", row, obj.centroid.x);
+					results.setValue("Y", row, obj.centroid.y);
+					results.setValue("Z", row, obj.centroid.z);
+					results.setValue("Volume"+Vunit, row, obj.volume);
+					for(int c=1;c<=C;c++){
+						double mean = sum[c]/count[c];
+						results.setValue("C"+c+" Mean", row, mean);
+					}
 				}
+				row++;
+				TextRoi marker3D = new TextRoi((obj.centroid.x/pixW)-3, (obj.centroid.y/pixW)-6, ""+(i+1), labelFont);
+				if(Z==1){
+					marker3D.setPosition(0);
+				}
+				else{
+					marker3D.setPosition( (int)Math.round(obj.centroid.z/pixD) );
+				}
+				marker3D.setStrokeColor(objectColours[i]);
+				ol.add(marker3D);
 			}
-			row++;
-			TextRoi marker3D = new TextRoi((obj.centroid.x/pixW)-3, (obj.centroid.y/pixW)-6, ""+(i+1), labelFont);
-			if(Z==1){
-				marker3D.setPosition(0);
-			}
-			else{
-				marker3D.setPosition( (int)Math.round(obj.centroid.z/pixD) );
-			}
-			marker3D.setStrokeColor(objectColours[i]);
-			ol.add(marker3D);
-		}
-		imp.killRoi();
-		imp.setPosition(startC, startZ, 1);
-		//if(IJ.isMacro()){ results.show("Results"); }
-		//else{ results.show(imp.getTitle()+"-HKM Segmentation"); }
-		if(!IJ.isMacro()){ results.show(imp.getTitle()+"-HKM Segmentation"); }	//don't show table if run from macro - probably only the Rois needed
+			imp.killRoi();
+			imp.setPositionWithoutUpdate(startC, startZ, 1);
+			//if(IJ.isMacro()){ results.show("Results"); }
+			//else{ results.show(imp.getTitle()+"-HKM Segmentation"); }
+			if(!IJ.isMacro()){ results.show(imp.getTitle()+"-HKM Segmentation"); }	//don't show table if run from macro - probably only the Rois needed
+		}catch(Exception e){IJ.log(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
+		finally{imp.getWindow().setVisible(true);}
 	}
 	
 	private JPanel guiPanel(Object... comp){
 		JPanel panel = new JPanel();
 		for(Object obj : comp){
 			if(obj==null){
-				//probably because there is no image. TODO: something sensible here
+				IJ.log("guiPanel error, tried to add null Object"); //probably because there is no image.
 			}
 			else if(obj instanceof String){
 				panel.add(new JLabel((String)obj));
@@ -513,12 +515,6 @@ private static final String helpText = "<html>"+
 					else if (ae.getSource()==helpButton){
 						if(helpFrame==null){
 							helpFrame = new JFrame();
-							/* try{
-							helpText = new Scanner(new File(System.getProperty("user.dir")+File.separator+"plugins"+File.separator+"HKM_Segment"+File.separator+"help.html")).useDelimiter("\\A").next();
-							}catch(FileNotFoundException fnfe){
-								IJ.error("help.html not found");
-								return;
-							} */
 							JEditorPane textPane = new JEditorPane("text/html", helpText);
 							textPane.setEditable(false);
 							JScrollPane scrollPane = new JScrollPane(textPane, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
@@ -677,7 +673,7 @@ private static final String helpText = "<html>"+
 				else{ minV = minA; }
 				maxA = Math.PI*(maxR*maxR);
 			}
-			showBad = false;	//don't show rejected objects when called from a macro - TODO: worth setting from arg?
+			showBad = false;	//don't show rejected objects when called from a macro
 			segment(false, true);
 		}
 		else{

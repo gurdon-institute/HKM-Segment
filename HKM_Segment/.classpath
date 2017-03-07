@@ -2,9 +2,9 @@
 <classpath>
 	<classpathentry kind="src" path=""/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/jdk1.6.0_45"/>
-	<classpathentry kind="lib" path="C:/Programs/Fiji.app-ImageJ2b/jars/ij-1.51j.jar"/>
 	<classpathentry kind="lib" path="C:/Users/Richard Butler/workspace/Java3D/1.5.1/lib/ext/j3dcore.jar"/>
 	<classpathentry kind="lib" path="C:/Users/Richard Butler/workspace/Java3D/1.5.1/lib/ext/j3dutils.jar"/>
 	<classpathentry kind="lib" path="C:/Users/Richard Butler/workspace/Java3D/1.5.1/lib/ext/vecmath.jar"/>
+	<classpathentry kind="lib" path="C:/Programs/Fiji.app-ImageJ2b/jars/ij-1.51j.jar"/>
 	<classpathentry kind="output" path="plugins"/>
 </classpath>
