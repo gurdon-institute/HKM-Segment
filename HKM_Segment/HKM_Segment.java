@@ -143,18 +143,18 @@ private static final String helpText = "<html>"+
 		}
 	}
 	
-	public void setImage(){
+	public boolean setImage(){
 		if(WindowManager.getImageCount()==0){
 			IJ.error("HK_Segment", "No Images are open.");
-			return;
+			return false;
 		}
 		else{
 			imp = WindowManager.getCurrentImage();
-			setImage(imp);
+			return setImage(imp);
 		}
 	}
 	
-	public void setImage(ImagePlus image){
+	public boolean setImage(ImagePlus image){
 		imp = image;
 		cal = imp.getCalibration();
 		W = imp.getWidth();
@@ -168,6 +168,7 @@ private static final String helpText = "<html>"+
 		Vunit = " ("+unit+"^3)";
 		imp.setOverlay(null);
 		imp.killRoi();
+		return true;
 	}
 	
 	private boolean onEdge(Roi roi){
@@ -392,8 +393,7 @@ private static final String helpText = "<html>"+
 	private JPanel guiPanel(Object... comp){
 		JPanel panel = new JPanel();
 		for(Object obj : comp){
-			if(obj==null){
-				IJ.log("guiPanel error, tried to add null Object"); //probably because there is no image.
+			if(obj==null){  //probably because there is no image.
 			}
 			else if(obj instanceof String){
 				panel.add(new JLabel((String)obj));
@@ -600,8 +600,9 @@ private static final String helpText = "<html>"+
 	
 	private void segment(final boolean preview, final boolean isMacro){
 		try{
+			if(!setImage()){return;}
 			if(!isMacro){ card.show(gui.getContentPane(), "working"); }
-			setImage();
+			
 			if(imp.getBitDepth()==32){
 				IJ.error("32-bit images are not supported.");
 				return;
