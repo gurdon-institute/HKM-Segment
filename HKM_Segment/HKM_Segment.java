@@ -329,7 +329,9 @@ private static final String helpText = "<html>"+
 	
 	private void output(ArrayList<Object3D> objects){
 		try{
-			imp.getWindow().setVisible(false);	
+			if(imp.getWindow()!=null){	//won't have an ImageWindow if called from a batch mode macro
+				imp.getWindow().setVisible(false);	
+			}
 			Color[] objectColours = makeColours(objects.size());
 			results = new ResultsTable();
 			if(IJ.isMacro()){ results = ResultsTable.getResultsTable(); }
@@ -387,7 +389,7 @@ private static final String helpText = "<html>"+
 			//else{ results.show(imp.getTitle()+"-HKM Segmentation"); }
 			if(!IJ.isMacro()){ results.show(imp.getTitle()+"-HKM Segmentation"); }	//don't show table if run from macro - probably only the Rois needed
 		}catch(Exception e){IJ.log(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
-		finally{imp.getWindow().setVisible(true);}
+		finally{ if(imp.getWindow()!=null) imp.getWindow().setVisible(true); }
 	}
 	
 	private JPanel guiPanel(Object... comp){
