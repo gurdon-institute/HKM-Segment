@@ -1,6 +1,6 @@
 
 
-//3D point class to replace vecmath.Point3d because Rasha can't install java3d
+//3D point class to replace vecmath.Point3d because iProducts can't use java3d or something
 
 public class Point3b {
 public double x,y,z;

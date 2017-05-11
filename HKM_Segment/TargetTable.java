@@ -11,7 +11,6 @@ import java.util.*;
 public class TargetTable{
 private ImagePlus imp;
 private Calibration cal;
-private ResultsTable results;
 private TextPanel textPanel;
 private String[] head;
 private double markR;
@@ -21,7 +20,6 @@ private double markR;
 		this.imp = imp;
 		cal = imp.getCalibration();
 		markR = 20*cal.pixelWidth;
-		this.results = results;
 		String headStr = results.getColumnHeadings();	
 		this.head = headStr.split("\\t");
 		
@@ -56,8 +54,8 @@ private double markR;
 			String[] line = textPanel.getLine(start).split("\\t");
 			double x = -1;	double y = -1; int z = -1;
 			for(int i=0;i<head.length;i++){
-					 if(head[i].equals("X")){x = Double.valueOf(line[i]);}
-				else if(head[i].equals("Y")){y = Double.valueOf(line[i]);}
+					 if(head[i].equals("X")){x = Double.valueOf(line[i])/cal.pixelWidth;}
+				else if(head[i].equals("Y")){y = Double.valueOf(line[i])/cal.pixelWidth;}
 				else if(head[i].equals("Z")){z = (int)Math.round(Double.valueOf(line[i])/cal.pixelDepth);}
 			}
 			if(z>0){
@@ -66,7 +64,7 @@ private double markR;
 			if(x>=0&&y>=0){
 				final OvalRoi marker = new OvalRoi(  x-markR , y-markR , 2*markR , 2*markR );
 				marker.setStrokeWidth(100);
-				marker.setColor(Color.RED);
+				marker.setStrokeColor(Color.RED);
 				imp.setRoi(marker);
 				final Timer timer = new Timer();
 				TimerTask task = new TimerTask(){

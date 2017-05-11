@@ -1,16 +1,11 @@
-import ij.*;
-import ij.gui.*;
-import ij.plugin.*;
-import ij.plugin.frame.Recorder;
-import ij.plugin.filter.*;
-import ij.process.*;
-import ij.measure.*;
-
 import java.awt.Color;
+import java.util.ArrayList;
+import java.util.Arrays;
 
-import java.lang.Exception;
-import java.lang.RuntimeException;
-import java.util.*;
+import ij.IJ;
+import ij.ImagePlus;
+import ij.process.ImageStatistics;
+import ij.process.StackStatistics;
 
 
 public class HistogramCluster{
@@ -33,7 +28,7 @@ private int k;
 		imin = stats.min;
 		imax = stats.max;
 		double binW = stats.binSize; //imax/n;
-		int Z = imp.getNSlices();
+		//int Z = imp.getNSlices();
 		histCounts = stats.histogram; //always use the stack histogram, even for previews
 		int n = histCounts.length;	//256
 		histValues = new double[n];

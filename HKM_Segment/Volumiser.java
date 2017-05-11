@@ -11,16 +11,16 @@ import ij.process.ImageStatistics;
 
 public class Volumiser{
 private ImagePlus imp;
-private int W, H, Z;
+//private int W, H, Z;
 private double pixW, pixD, joinR, minV;
 
 	public Volumiser(ImagePlus imp, double joinR, double minV){
 		this.imp = imp;
 		this.joinR = joinR;
 		this.minV = minV;
-		this.W = imp.getWidth();
-		this.H = imp.getHeight();
-		this.Z = imp.getNSlices();
+		//this.W = imp.getWidth();
+		//this.H = imp.getHeight();
+		//this.Z = imp.getNSlices();
 		Calibration cal = imp.getCalibration();
 		this.pixW = cal.pixelWidth;
 		this.pixD = cal.pixelDepth;
@@ -55,10 +55,6 @@ private double pixW, pixD, joinR, minV;
 		while(!done && its<100){
 			done = true;
 			its ++;
-			int changei = 0;
-			int zeron = 0;
-			int mover = 0;
-			int joiner = 0;
 			for(int p=0;p<parts.length;p++){
 				Point3b partCoord = partCoords[p];
 				double minCost = Double.POSITIVE_INFINITY;
@@ -75,7 +71,6 @@ private double pixW, pixD, joinR, minV;
 				}
 				if(mini != -1 && partI[p] != mini){
 					partI[p] = mini;
-					changei += 1;
 					done = false;
 				}
 			}
@@ -96,7 +91,6 @@ private double pixW, pixD, joinR, minV;
 				}
 				if(n==0){
 					centroids.set(c, null);
-					zeron++;
 					done = false;
 				}
 				else{
@@ -105,7 +99,6 @@ private double pixW, pixD, joinR, minV;
 					double moved = Math.sqrt( Math.pow(keepC.get(a).x-centroids.get(c).x,2) + Math.pow(keepC.get(a).y-centroids.get(c).y,2) + Math.pow(keepC.get(a).z-centroids.get(c).z,2) );
 					if(moved>pixW){		//movement greater than the smallest distance between adjacent pixels -> not converged
 						done = false;
-						mover++;
 					}
 				}
 			}
@@ -130,7 +123,6 @@ private double pixW, pixD, joinR, minV;
 						volz += c2.z;
 						n++;
 						centroids.set(i2, null);
-						joiner++;
 						done = false;
 					}
 				}
@@ -139,7 +131,6 @@ private double pixW, pixD, joinR, minV;
 				}
 			}
 			centroids = new ArrayList<Point3b>(keepC);
-			//IJ.log("iteration "+its+" , "+changei+" changed , "+zeron+" zeros , "+mover+" moved, "+joiner+" joined");
 		}
 		for(int c=0;c<centroids.size();c++){
 			double volume = 0d;

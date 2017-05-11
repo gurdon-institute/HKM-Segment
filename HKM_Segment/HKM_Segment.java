@@ -31,6 +31,7 @@ import ij.ImagePlus;
 import ij.Macro;
 import ij.Prefs;
 import ij.WindowManager;
+import ij.gui.Line;
 import ij.gui.Overlay;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
@@ -44,6 +45,7 @@ import ij.plugin.filter.ThresholdToSelection;
 import ij.plugin.frame.Recorder;
 import ij.plugin.frame.RoiManager;
 import ij.process.ByteProcessor;
+import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
 import ij.process.ImageStatistics;
 
@@ -54,13 +56,13 @@ private JFrame gui, helpFrame;
 private CardLayout card;
 private JTextField kField, blurField, minField, maxField;
 private JCheckBox watershedTick, badTick;
-private JButton previewButton, okButton, cancelButton, targetButton, helpButton;
+private JButton previewButton, okButton, cancelButton, targetButton, helpButton, minMeasureButton, maxMeasureButton;
 private static final String[] methods = {"None", "Huang", "IsoData", "Li", "MaxEntropy",
 										 "Mean", "Minimum", "Moments", "Otsu", "Percentile", 
 										 "RenyiEntropy", "Shanbhag", "Triangle", "Yen" };
 private static final Font labelFont = new Font(Font.SANS_SERIF, Font.BOLD, 12);
 private static final BasicStroke dottedStroke = new BasicStroke( 0.5f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0f, new float[] {4f, 4f}, 0f );
-private JComboBox thresholdCombo;
+private JComboBox<String> thresholdCombo;
 private ActionListener listener;
 private ImagePlus imp, proc;
 private Calibration cal;
@@ -193,6 +195,7 @@ private static final String helpText = "<html>"+
 	}
 	
 	private ArrayList<Roi> extractObjects(boolean preview){
+	try{
 		cells = new ArrayList<Roi>();
 		Overlay ol = new Overlay();
 		int start = 1;
@@ -217,8 +220,6 @@ private static final String helpText = "<html>"+
 				ImageProcessor procip = proc.getProcessor();
 				procip.setColor(Color.BLACK);
 				
-				
-				
 				Roi roi = tts.convert(procip);
 			if(roi==null)continue;
 				Rectangle offsetRect = roi.getBounds();
@@ -239,12 +240,11 @@ private static final String helpText = "<html>"+
 				
 				if(roi!=null){
 					Roi[] split = new ShapeRoi(roi).getRois();
-					if(split.length>50000){
-						String advice = "";
-						if(sigma<pixW){advice = "\nApplying a blur of half the minimum radius may give better results.";}
-						int ans = JOptionPane.showConfirmDialog(gui, split.length+" objects found in slice "+z+", continue?"+advice, "Continue?", JOptionPane.YES_NO_OPTION);
-						if(ans==JOptionPane.NO_OPTION){return null;}
-					}
+					//if(split.length>50000){
+						//String advice = (sigma<pixW)?"\nApplying a blur of half the minimum radius may give better results.":"";
+						//int ans = JOptionPane.showConfirmDialog(gui, split.length+" objects found in slice "+z+", continue?"+advice, "Continue?", JOptionPane.YES_NO_OPTION);
+						//if(ans==JOptionPane.NO_OPTION){return null;}
+					//}
 					for(int ri=0;ri<split.length;ri++){
 						Roi r = split[ri];
 						int ed = (int)Math.floor(minR/4/pixW)+1;
@@ -252,10 +252,18 @@ private static final String helpText = "<html>"+
 						if(sigma>pixW){
 							blurAdjust = (int)Math.floor(sigma/pixW);
 						}
-						r = RoiEnlarger.enlarge(r, -ed);
-						r = RoiEnlarger.enlarge(r, ed-blurAdjust);
-						if(onEdge(r)){
-							continue;
+						
+						boolean tooSmall = false;
+						try{
+							r = RoiEnlarger.enlarge(r, -ed);
+						}catch(ArrayIndexOutOfBoundsException oob){	//from ThresholdToSelection, caused by trying to convert threshold to ShapeRoi with a mask that has no signal
+							tooSmall = true;	//if oob was thrown, the erosion completely removed the Roi
+						}
+						if(!tooSmall){
+							r = RoiEnlarger.enlarge(r, ed-blurAdjust);
+							if(onEdge(r)){
+								continue;
+							}
 						}
 						procip.setRoi(r);
 						ImageStatistics procStats = ImageStatistics.getStatistics(procip, ImageStatistics.AREA+ImageStatistics.MEAN, cal);
@@ -270,10 +278,6 @@ private static final String helpText = "<html>"+
 								r.setStrokeColor(colours[m]);
 								ol.add(r);
 							}
-							/* if(preview){	//add single colour overlay for previews
-							r.setStrokeColor(Color.MAGENTA);
-							ol.add(r);
-							} */
 							cells.add(r);	
 							outip.fill(r); //add to the binary mask (white)
 							procip.fill(r); //remove from the thresholding image (black)
@@ -305,25 +309,35 @@ private static final String helpText = "<html>"+
 			IJ.error("HKM Segment", "No objects found.\nTry increasing K and setting blur radius to half the minimum radius.");
 		}
 		imp.setOverlay(ol);
+	}catch(Exception e){System.out.print(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
 		return cells;
 	}
 	
 	private Color[] makeColours(int n){	//generate n different colours
 		ArrayList<Color> colourList = new ArrayList<Color>();
-		//ColorProcessor cp = new ColorProcessor(n*4, 100);	//commented out code here is for displaying generated colours
+		boolean showColours = false; 	//display generated colours?
+		ColorProcessor cp = null; int x = 0;
+		if(showColours){ cp = new ColorProcessor(n*4, 100); }
 		float step = 3f/n;
-		//int x = 0;
 		for(float f=0f;f<=1f;f+=step){
 			float v1 = (float)Math.random();
 			float v2 = (float)Math.random();
 			float v3 = (float)Math.random();
 			if( v1+v2+v3 < 1 ){ v1 = 1f-v1; }
-			colourList.add( new Color( v1, v3, v2) );	//cp.setColor(colourList.get(colourList.size()-1));	cp.setRoi(new Roi(x, 0, 4, 100));	cp.fill();
-			colourList.add( new Color( v2, v1, v3) );	//cp.setColor(colourList.get(colourList.size()-1));	cp.setRoi(new Roi(x+4, 0, 4, 100));	cp.fill();
-			colourList.add( new Color( v3, v2, v1) );	//cp.setColor(colourList.get(colourList.size()-1));	cp.setRoi(new Roi(x+8, 0, 4, 100));	cp.fill();	x += 12;
+			colourList.add( new Color( v1, v3, v2) );
+			colourList.add( new Color( v2, v1, v3) );
+			colourList.add( new Color( v3, v2, v1) );
+			if(showColours){
+				cp.setColor(colourList.get(colourList.size()-1));	cp.setRoi(new Roi(x, 0, 4, 100));	cp.fill();
+				cp.setColor(colourList.get(colourList.size()-1));	cp.setRoi(new Roi(x+4, 0, 4, 100));	cp.fill();
+				cp.setColor(colourList.get(colourList.size()-1));	cp.setRoi(new Roi(x+8, 0, 4, 100));	cp.fill();
+				x += 12;
+			}
 		}
-		//ImagePlus cimp = new ImagePlus("colours", cp);
-		//cimp.show();
+		if(showColours){
+			ImagePlus cimp = new ImagePlus("colours", cp);
+			cimp.show();
+		}
 		return colourList.toArray(new Color[n]);
 	}
 	
@@ -459,12 +473,40 @@ private static final String helpText = "<html>"+
 		return true;
 	}
 	
+	private double measureRoi(double current){
+		if(imp==null) return current;
+		if(imp.getRoi()==null){
+			JOptionPane.showMessageDialog(gui, "No Roi to measure.", "Error", JOptionPane.WARNING_MESSAGE);
+			return current;
+		}
+		Roi roi = imp.getRoi();
+		double v = current;
+		if(roi instanceof Line){
+			v = roi.getLength();
+		}
+		else{
+			v = roi.getFeretValues()[0];
+		}
+		return v;
+	}
+	
 	public JFrame showGui(){
 		if(gui==null){
 			listener = new ActionListener(){
 				public void actionPerformed(ActionEvent ae){
 					if(ae.getSource()==cancelButton){
 						gui.dispose();
+						return;
+					}
+					
+					if (ae.getSource()==minMeasureButton){
+						double roiL = measureRoi(minR);
+						minField.setText( String.format("%.2f",roiL) );
+						return;
+					}
+					else if (ae.getSource()==maxMeasureButton){
+						double roiL = measureRoi(maxR);
+						maxField.setText(String.format("%.2f",roiL));
 						return;
 					}
 					
@@ -533,19 +575,24 @@ private static final String helpText = "<html>"+
 			gui.setIconImage(Toolkit.getDefaultToolkit().getImage(getClass().getResource("logo_icon.gif")));
 			card = new CardLayout();
 			gui.setLayout(card);
+			int CW = 3;	//field width;
 			JPanel main = new JPanel();
 			main.setLayout(new BoxLayout(main, BoxLayout.Y_AXIS));
 			JPanel logoPanel = new JPanel();
 			logoPanel.add(new JLabel(new ImageIcon(Toolkit.getDefaultToolkit().getImage(getClass().getResource("logo_borded_336x104.gif")))));
 			main.add(logoPanel);
-			kField = new JTextField(""+startK, 4);
+			kField = new JTextField(""+startK, CW);
 			main.add(guiPanel("Starting K:", kField));
-			blurField = new JTextField(""+sigma, 4);
+			blurField = new JTextField(""+sigma, CW);
 			main.add(guiPanel("Blur Radius:", blurField, unit));
-			minField = new JTextField(""+minR, 4);
-			maxField = new JTextField(""+maxR, 4);
-			main.add(guiPanel("Object Radius",minField, "to", maxField, unit));
-			thresholdCombo = new JComboBox(methods);
+			minField = new JTextField(""+minR, CW);
+			maxField = new JTextField(""+maxR, CW);
+			minMeasureButton = new MButton();
+			minMeasureButton.addActionListener(listener);
+			maxMeasureButton = new MButton();
+			maxMeasureButton.addActionListener(listener);
+			main.add(guiPanel("Object Radius",minField, minMeasureButton, "to", maxField, maxMeasureButton, unit));
+			thresholdCombo = new JComboBox<String>(methods);
 			thresholdCombo.setSelectedItem(thresholdMethod);
 			main.add(guiPanel("Threshold:", thresholdCombo));
 			JPanel tickPanel = new JPanel();
@@ -649,7 +696,7 @@ private static final String helpText = "<html>"+
 		}catch(Exception e){IJ.log(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
 	}	
 	
-	public void run(String _){
+	public void run(String runarg){
 	try{
 		if(IJ.isMacro()){
 			String args = Macro.getOptions();
