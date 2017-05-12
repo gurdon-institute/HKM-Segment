@@ -45,25 +45,16 @@ private int k;
 		return histCounts;
 	}
 	
-	public Color[] createColours() throws Exception{	//create k heatmap colours
-		if(k==0){throw new Exception("HistogramCluster.createColours() - no clusters to create colours for,\nrun getLevels(int startK, int minN) first.");}
-		Color[] colours = new Color[k];
-		for(int m=0; m<k; m++){
-			float f = 2f * (m+1)/k;
-			int b = (int)(Math.max(0, 255*(1f - f)));
-			int r = (int)(Math.max(0, 255*(f - 1f)));
-			int g = 255 - r - b;
-			colours[m] = new Color( r, g, b );
-		}
-		return colours;
-	}
-	
 	public double[] getLevels(){
 		return getLevels(128, 1);
 	}
 	
 	public double[] getLevels(int startK){
 		return getLevels(startK, 1);
+	}
+	
+	public int getK(){
+		return k;
 	}
 	
 	public double[] getLevels(int startK, double minN){

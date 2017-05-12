@@ -144,10 +144,14 @@ private double pixW, pixD, joinR, minV;
 					rois.add(parts[i]);
 				}
 			}
-
+			volume *= pixD;
 			if(volume>=minV){
 				Roi[] roiArr = rois.toArray(new Roi[rois.size()]);
 				objects.add(new Object3D(centroids.get(c), roiArr, volume));
+				//System.out.println("goodV "+volume+"/"+minV);
+			}
+			else{
+				//System.out.println("badV "+volume+"/"+minV);
 			}
 		}
 		imp.killRoi();

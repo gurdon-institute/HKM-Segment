@@ -6,13 +6,22 @@ import javax.swing.JButton;
 
 public class MButton extends JButton {
 	private static final long serialVersionUID = 7879878090304256129L;
-	private final ImageIcon icon = new ImageIcon( getClass().getResource("/measure.png") );
 	private static final Insets insets = new Insets(2,2,2,2);
+	private final ImageIcon icon = new ImageIcon( getClass().getResource("/measure.png") );
+	
 	private final Dimension dim = new Dimension(icon.getIconWidth(), icon.getIconHeight());
 	
-	public MButton(){
+	public static enum Type{
+		MEASURE("measure"), CONFIG("config");
+		ImageIcon icon;
+		Type(String name){
+			this.icon = new ImageIcon( getClass().getResource("/"+name+".png") ); 
+		}
+	}
+	
+	public MButton(Type t){
 		super();
-		setIcon(icon);
+		setIcon(t.icon);
 		setMargin(insets);
 	}
 	

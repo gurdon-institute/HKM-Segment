@@ -1,8 +1,6 @@
-import java.awt.BasicStroke;
 import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Font;
 import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.Rectangle;
@@ -21,7 +19,6 @@ import javax.swing.JComboBox;
 import javax.swing.JEditorPane;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
@@ -45,7 +42,6 @@ import ij.plugin.filter.ThresholdToSelection;
 import ij.plugin.frame.Recorder;
 import ij.plugin.frame.RoiManager;
 import ij.process.ByteProcessor;
-import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
 import ij.process.ImageStatistics;
 
@@ -56,12 +52,12 @@ private JFrame gui, helpFrame;
 private CardLayout card;
 private JTextField kField, blurField, minField, maxField;
 private JCheckBox watershedTick, badTick;
-private JButton previewButton, okButton, cancelButton, targetButton, helpButton, minMeasureButton, maxMeasureButton;
+private JButton previewButton, okButton, cancelButton, targetButton, helpButton, minMeasureButton, maxMeasureButton, configButton;
 private static final String[] methods = {"None", "Huang", "IsoData", "Li", "MaxEntropy",
 										 "Mean", "Minimum", "Moments", "Otsu", "Percentile", 
 										 "RenyiEntropy", "Shanbhag", "Triangle", "Yen" };
-private static final Font labelFont = new Font(Font.SANS_SERIF, Font.BOLD, 12);
-private static final BasicStroke dottedStroke = new BasicStroke( 0.5f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0f, new float[] {4f, 4f}, 0f );
+
+private HKMConfig config = new HKMConfig();
 private JComboBox<String> thresholdCombo;
 private ActionListener listener;
 private ImagePlus imp, proc;
@@ -78,7 +74,7 @@ private double sigma = Prefs.get("HKM_Segment.sigma", 0.0);
 private int W, H, C, Z, k;
 private int startK = (int)Prefs.get("HKM_Segment.startK", 10);
 private String thresholdMethod = Prefs.get("HKM_Segment.thresholdMethod", "None");
-private Color[] colours;
+private Color[] previewColours;
 private double[] means;
 private ArrayList<Roi> cells;
 private boolean watershed = Prefs.get("HKM_Segment.watershed", false);
@@ -218,10 +214,13 @@ private static final String helpText = "<html>"+
 			for(int z=start;z<=end;z++){
 				proc.setPositionWithoutUpdate(channel, z, 1);
 				ImageProcessor procip = proc.getProcessor();
-				procip.setColor(Color.BLACK);
-				
-				Roi roi = tts.convert(procip);
-			if(roi==null)continue;
+				procip.setColor(Color.BLACK);			
+				if(procip.getStatistics().mean==0) continue;		//ThresholdToSelection throws ArrayIndexOutOfBoundsException if image is empty
+				Roi roi = null;
+				try{
+					roi = tts.convert(procip);
+				}catch(ArrayIndexOutOfBoundsException oob){continue;}	//ignore ArrayIndexOutOfBoundsException from ThresholdToSelection
+				if(roi==null)continue;
 				Rectangle offsetRect = roi.getBounds();
 				procip.setRoi(roi);
 				ImageProcessor mask = procip.getMask();		//returns null if the Roi is regular, eg a rectangle covering the whole image
@@ -232,18 +231,20 @@ private static final String helpText = "<html>"+
 				if(watershed){
 					IJ.run(maskimp, "Watershed", "");
 				}
-				roi = tts.convert(mask);
-			if(roi==null)continue;
+				if(mask.getStatistics().mean==0) continue;
+				try{
+					roi = tts.convert(mask);
+				}catch(ArrayIndexOutOfBoundsException oob){continue;}	//ignore ArrayIndexOutOfBoundsException from ThresholdToSelection
+				if(roi==null)continue;	
 				Rectangle rect = roi.getBounds();
 				roi.setLocation(rect.x+offsetRect.x, rect.y+offsetRect.y);
-				maskimp.close();
-				
+				maskimp.close();		
 				if(roi!=null){
 					Roi[] split = new ShapeRoi(roi).getRois();
 					//if(split.length>50000){
-						//String advice = (sigma<pixW)?"\nApplying a blur of half the minimum radius may give better results.":"";
-						//int ans = JOptionPane.showConfirmDialog(gui, split.length+" objects found in slice "+z+", continue?"+advice, "Continue?", JOptionPane.YES_NO_OPTION);
-						//if(ans==JOptionPane.NO_OPTION){return null;}
+					//String advice = (sigma<pixW)?"\nApplying a blur of half the minimum radius may give better results.":"";
+					//int ans = JOptionPane.showConfirmDialog(gui, split.length+" objects found in slice "+z+", continue?"+advice, "Continue?", JOptionPane.YES_NO_OPTION);
+					//if(ans==JOptionPane.NO_OPTION){return null;}
 					//}
 					for(int ri=0;ri<split.length;ri++){
 						Roi r = split[ri];
@@ -252,7 +253,7 @@ private static final String helpText = "<html>"+
 						if(sigma>pixW){
 							blurAdjust = (int)Math.floor(sigma/pixW);
 						}
-						
+
 						boolean tooSmall = false;
 						try{
 							r = RoiEnlarger.enlarge(r, -ed);
@@ -260,7 +261,9 @@ private static final String helpText = "<html>"+
 							tooSmall = true;	//if oob was thrown, the erosion completely removed the Roi
 						}
 						if(!tooSmall){
-							r = RoiEnlarger.enlarge(r, ed-blurAdjust);
+							try{
+								r = RoiEnlarger.enlarge(r, ed-blurAdjust);
+							}catch(ArrayIndexOutOfBoundsException oob){continue;}
 							if(onEdge(r)){
 								continue;
 							}
@@ -268,14 +271,15 @@ private static final String helpText = "<html>"+
 						procip.setRoi(r);
 						ImageStatistics procStats = ImageStatistics.getStatistics(procip, ImageStatistics.AREA+ImageStatistics.MEAN, cal);
 						outip.setRoi(r);
-						if(outip.getStatistics().mean > 0){
+						if(outip.getStatistics().mean > 0){ //already added
 							continue;
 						}
 						if( procStats.area>=minA && procStats.area<=maxA && procStats.mean>=threshold ){
 							r.setPosition(z);
+							r.setStroke(config.stroke);
 							if(Z==1&&C>1){r.setPosition(channel);}
 							if(preview){	//add overlay for previews using hierarchy level colours
-								r.setStrokeColor(colours[m]);
+								r.setStrokeColor(previewColours[m]);
 								ol.add(r);
 							}
 							cells.add(r);	
@@ -286,7 +290,7 @@ private static final String helpText = "<html>"+
 						else if(showBad){
 							Roi bad = r;
 							bad.setPosition(1, z, 1);
-							bad.setStroke(dottedStroke);
+							bad.setStroke(config.dottedStroke);
 							bad.setStrokeColor(Color.YELLOW);
 							ol.add(bad);
 						}
@@ -309,36 +313,12 @@ private static final String helpText = "<html>"+
 			IJ.error("HKM Segment", "No objects found.\nTry increasing K and setting blur radius to half the minimum radius.");
 		}
 		imp.setOverlay(ol);
-	}catch(Exception e){System.out.print(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
-		return cells;
 	}
-	
-	private Color[] makeColours(int n){	//generate n different colours
-		ArrayList<Color> colourList = new ArrayList<Color>();
-		boolean showColours = false; 	//display generated colours?
-		ColorProcessor cp = null; int x = 0;
-		if(showColours){ cp = new ColorProcessor(n*4, 100); }
-		float step = 3f/n;
-		for(float f=0f;f<=1f;f+=step){
-			float v1 = (float)Math.random();
-			float v2 = (float)Math.random();
-			float v3 = (float)Math.random();
-			if( v1+v2+v3 < 1 ){ v1 = 1f-v1; }
-			colourList.add( new Color( v1, v3, v2) );
-			colourList.add( new Color( v2, v1, v3) );
-			colourList.add( new Color( v3, v2, v1) );
-			if(showColours){
-				cp.setColor(colourList.get(colourList.size()-1));	cp.setRoi(new Roi(x, 0, 4, 100));	cp.fill();
-				cp.setColor(colourList.get(colourList.size()-1));	cp.setRoi(new Roi(x+4, 0, 4, 100));	cp.fill();
-				cp.setColor(colourList.get(colourList.size()-1));	cp.setRoi(new Roi(x+8, 0, 4, 100));	cp.fill();
-				x += 12;
-			}
-		}
-		if(showColours){
-			ImagePlus cimp = new ImagePlus("colours", cp);
-			cimp.show();
-		}
-		return colourList.toArray(new Color[n]);
+	catch(ArrayIndexOutOfBoundsException oob){
+		System.out.print(oob.toString()+" in extractObjects\n~~~~~\n"+Arrays.toString(oob.getStackTrace()).replace(",","\n"));
+	}
+	catch(Exception e){System.out.print(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
+		return cells;
 	}
 	
 	private void output(ArrayList<Object3D> objects){
@@ -346,12 +326,13 @@ private static final String helpText = "<html>"+
 			if(imp.getWindow()!=null){	//won't have an ImageWindow if called from a batch mode macro
 				imp.getWindow().setVisible(false);	
 			}
-			Color[] objectColours = makeColours(objects.size());
+			Color[] objectColours = ColourSets.heatmap(objects.size());//ColourSets.random(objects.size());
 			results = new ResultsTable();
 			if(IJ.isMacro()){ results = ResultsTable.getResultsTable(); }
 			results.setPrecision(3);
 			results.showRowNumbers(false);
 			Overlay ol = imp.getOverlay();
+			if(ol==null) ol = new Overlay();
 			int row = results.getCounter();
 			int startC = imp.getChannel();
 			int startZ = imp.getSlice();
@@ -372,7 +353,9 @@ private static final String helpText = "<html>"+
 					if(Z==1){
 						roi.setPosition(0, 0, 0);
 					}
+					
 					ol.add(roi);
+					
 				}
 
 				if(!IJ.isMacro()){
@@ -387,7 +370,7 @@ private static final String helpText = "<html>"+
 					}
 				}
 				row++;
-				TextRoi marker3D = new TextRoi((obj.centroid.x/pixW)-3, (obj.centroid.y/pixW)-6, ""+(i+1), labelFont);
+				TextRoi marker3D = new TextRoi((obj.centroid.x/pixW)-(config.fontS/4), (obj.centroid.y/pixW)-(config.fontS/2), ""+(i+1), config.labelFont);
 				if(Z==1){
 					marker3D.setPosition(0);
 				}
@@ -406,7 +389,7 @@ private static final String helpText = "<html>"+
 		finally{ if(imp.getWindow()!=null) imp.getWindow().setVisible(true); }
 	}
 	
-	private JPanel guiPanel(Object... comp){
+	public static JPanel guiPanel(Object... comp){
 		JPanel panel = new JPanel();
 		for(Object obj : comp){
 			if(obj==null){  //probably because there is no image.
@@ -424,7 +407,7 @@ private static final String helpText = "<html>"+
 		return panel;
 	}
 	
-	private int getInt(String text){
+	private static int getInt(String text){
 		int i;
 		try{
 			i = Integer.parseInt(text);
@@ -434,7 +417,7 @@ private static final String helpText = "<html>"+
 		}
 		return i;
 	}
-	private double getDouble(String text){
+	private static double getDouble(String text){
 		double d;
 		try{
 			d = Double.valueOf(text);
@@ -474,20 +457,22 @@ private static final String helpText = "<html>"+
 	}
 	
 	private double measureRoi(double current){
-		if(imp==null) return current;
-		if(imp.getRoi()==null){
-			JOptionPane.showMessageDialog(gui, "No Roi to measure.", "Error", JOptionPane.WARNING_MESSAGE);
-			return current;
-		}
 		Roi roi = imp.getRoi();
-		double v = current;
-		if(roi instanceof Line){
-			v = roi.getLength();
+		double size = current;
+		if(imp==null||imp.getRoi()==null){
+			IJ.error("HKM Segment", "No Roi to measure.");
 		}
-		else{
-			v = roi.getFeretValues()[0];
+		else if(roi instanceof Line){
+			size = roi.getLength();
 		}
-		return v;
+		else if(roi instanceof Roi){ //rectangular
+			Rectangle bounds = roi.getBounds();
+			size = Math.max(bounds.width, bounds.height)*cal.pixelWidth;
+		}
+		else{	//polygon, shape, freehand
+			size = roi.getFeretValues()[0];
+		}
+		return size;
 	}
 	
 	public JFrame showGui(){
@@ -568,6 +553,9 @@ private static final String helpText = "<html>"+
 						helpFrame.setLocationRelativeTo(null);
 						helpFrame.setVisible(true);
 					}
+					else if(ae.getSource()==configButton){
+						config.display();
+					}
 				}
 			};
 			
@@ -575,21 +563,20 @@ private static final String helpText = "<html>"+
 			gui.setIconImage(Toolkit.getDefaultToolkit().getImage(getClass().getResource("logo_icon.gif")));
 			card = new CardLayout();
 			gui.setLayout(card);
-			int CW = 3;	//field width;
 			JPanel main = new JPanel();
 			main.setLayout(new BoxLayout(main, BoxLayout.Y_AXIS));
 			JPanel logoPanel = new JPanel();
 			logoPanel.add(new JLabel(new ImageIcon(Toolkit.getDefaultToolkit().getImage(getClass().getResource("logo_borded_336x104.gif")))));
 			main.add(logoPanel);
-			kField = new JTextField(""+startK, CW);
+			kField = new JTextField(""+startK, 3);
 			main.add(guiPanel("Starting K:", kField));
-			blurField = new JTextField(""+sigma, CW);
+			blurField = new JTextField(""+sigma, 3);
 			main.add(guiPanel("Blur Radius:", blurField, unit));
-			minField = new JTextField(""+minR, CW);
-			maxField = new JTextField(""+maxR, CW);
-			minMeasureButton = new MButton();
+			minField = new JTextField(""+minR, 6);
+			maxField = new JTextField(""+maxR, 6);
+			minMeasureButton = new MButton(MButton.Type.MEASURE);
 			minMeasureButton.addActionListener(listener);
-			maxMeasureButton = new MButton();
+			maxMeasureButton = new MButton(MButton.Type.MEASURE);
 			maxMeasureButton.addActionListener(listener);
 			main.add(guiPanel("Object Radius",minField, minMeasureButton, "to", maxField, maxMeasureButton, unit));
 			thresholdCombo = new JComboBox<String>(methods);
@@ -600,6 +587,9 @@ private static final String helpText = "<html>"+
 			tickPanel.add(watershedTick);
 			badTick = new JCheckBox("Show Rejected Objects", showBad);
 			tickPanel.add(badTick);
+			configButton = new MButton(MButton.Type.CONFIG);
+			configButton.addActionListener(listener);
+			tickPanel.add(configButton);
 			main.add(tickPanel);
 			previewButton = new JButton("Preview");
 			previewButton.addActionListener(listener);
@@ -667,14 +657,14 @@ private static final String helpText = "<html>"+
 			int minN = (int)Math.ceil(minA/pixW/pixW);
 			means = hc.getLevels(startK, minN);
 			if(means.length<1){IJ.error("Clusters could not be separated. Try decreasing the minimum radius.");return;}
-			colours = hc.createColours();
+			previewColours = ColourSets.heatmap(hc.getK());
 		//long time0 = System.nanoTime();
 			extractObjects(preview);
 		//IJ.log( "extractObjects "+((System.nanoTime()-time0)/1000000000f)+" sec" );
-			
+System.out.println(cells.size()+" cells");			
 			if(!preview){
 				double join = maxR;
-				Volumiser vol = new Volumiser(imp, join, minV);
+				Volumiser vol = new Volumiser(imp, join, minV); //FIXME: Volumiser doesn't work, Rois passed to it not being found correctly in 3D?
 				//Volumiser vol = new Volumiser(imp, join, minV/6d);
 				ArrayList<Object3D> o3d = vol.getVolumes( cells );
 				output(o3d);
@@ -690,10 +680,11 @@ private static final String helpText = "<html>"+
 					rm.addRoi(olRoi);
 				}
 			}
-		
-			if(!isMacro){ card.show(gui.getContentPane(), "main"); }
-				
+			
 		}catch(Exception e){IJ.log(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
+		finally{
+			if(!isMacro){ card.show(gui.getContentPane(), "main"); }
+		}
 	}	
 	
 	public void run(String runarg){
