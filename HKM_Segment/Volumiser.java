@@ -11,16 +11,13 @@ import ij.process.ImageStatistics;
 
 public class Volumiser{
 private ImagePlus imp;
-//private int W, H, Z;
+private static final int MAXITS = 100;
 private double pixW, pixD, joinR, minV;
 
 	public Volumiser(ImagePlus imp, double joinR, double minV){
 		this.imp = imp;
 		this.joinR = joinR;
 		this.minV = minV;
-		//this.W = imp.getWidth();
-		//this.H = imp.getHeight();
-		//this.Z = imp.getNSlices();
 		Calibration cal = imp.getCalibration();
 		this.pixW = cal.pixelWidth;
 		this.pixD = cal.pixelDepth;
@@ -52,9 +49,10 @@ private double pixW, pixD, joinR, minV;
 				
 		boolean done = false;
 		int its = 0;
-		while(!done && its<100){
+		while(!done && its<MAXITS){
 			done = true;
 			its ++;
+			//assign parts to closest centroids
 			for(int p=0;p<parts.length;p++){
 				Point3b partCoord = partCoords[p];
 				double minCost = Double.POSITIVE_INFINITY;
@@ -74,6 +72,7 @@ private double pixW, pixD, joinR, minV;
 					done = false;
 				}
 			}
+			//recalculate centroids
 			ArrayList<Point3b> keepC = new ArrayList<Point3b>();
 			for(int c=0;c<centroids.size();c++){
 				if(centroids.get(c) == null){
@@ -102,6 +101,7 @@ private double pixW, pixD, joinR, minV;
 					}
 				}
 			}
+			//merge centroids closer than joinR
 			centroids = new ArrayList<Point3b>(keepC);
 			keepC = new ArrayList<Point3b>();
 			for(int i1=0;i1<centroids.size();i1++){
@@ -132,6 +132,10 @@ private double pixW, pixD, joinR, minV;
 			}
 			centroids = new ArrayList<Point3b>(keepC);
 		}
+		if(its>=MAXITS){
+			IJ.log("getVolumes did not converge in "+MAXITS+" iterations");
+		}
+		//create objects from clusters
 		for(int c=0;c<centroids.size();c++){
 			double volume = 0d;
 			ArrayList<Roi> rois = new ArrayList<Roi>();
@@ -148,10 +152,6 @@ private double pixW, pixD, joinR, minV;
 			if(volume>=minV){
 				Roi[] roiArr = rois.toArray(new Roi[rois.size()]);
 				objects.add(new Object3D(centroids.get(c), roiArr, volume));
-				//System.out.println("goodV "+volume+"/"+minV);
-			}
-			else{
-				//System.out.println("badV "+volume+"/"+minV);
 			}
 		}
 		imp.killRoi();

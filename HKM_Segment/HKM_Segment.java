@@ -191,133 +191,133 @@ private static final String helpText = "<html>"+
 	}
 	
 	private ArrayList<Roi> extractObjects(boolean preview){
-	try{
-		cells = new ArrayList<Roi>();
-		Overlay ol = new Overlay();
-		int start = 1;
-		int end = Z;
-		if(preview){
-			start = imp.getZ();
-			end = start;
-		}
-		int channel = imp.getC();
-		boolean[] usedMean = new boolean[means.length];
-		threshold = -1d;
-		if(!thresholdMethod.equals("None")){
-			IJ.setAutoThreshold(proc, thresholdMethod+" dark stack");
-			threshold = proc.getProcessor().getMinThreshold();
-		}
-		ByteProcessor outip = new ByteProcessor(W, H);
-		outip.setColor(Color.WHITE);
-		for(int m=0; m<means.length; m++){
-			IJ.setThreshold(proc, means[m], Integer.MAX_VALUE);			//means in increasing order
-			for(int z=start;z<=end;z++){
-				proc.setPositionWithoutUpdate(channel, z, 1);
-				ImageProcessor procip = proc.getProcessor();
-				procip.setColor(Color.BLACK);			
-				if(procip.getStatistics().mean==0) continue;		//ThresholdToSelection throws ArrayIndexOutOfBoundsException if image is empty
-				Roi roi = null;
-				try{
-					roi = tts.convert(procip);
-				}catch(ArrayIndexOutOfBoundsException oob){continue;}	//ignore ArrayIndexOutOfBoundsException from ThresholdToSelection
-				if(roi==null)continue;
-				Rectangle offsetRect = roi.getBounds();
-				procip.setRoi(roi);
-				ImageProcessor mask = procip.getMask();		//returns null if the Roi is regular, eg a rectangle covering the whole image
-				if(mask==null){
-					continue;
-				}
-				ImagePlus maskimp = new ImagePlus("mask", mask);
-				if(watershed){
-					IJ.run(maskimp, "Watershed", "");
-				}
-				if(mask.getStatistics().mean==0) continue;
-				try{
-					roi = tts.convert(mask);
-				}catch(ArrayIndexOutOfBoundsException oob){continue;}	//ignore ArrayIndexOutOfBoundsException from ThresholdToSelection
-				if(roi==null)continue;	
-				Rectangle rect = roi.getBounds();
-				roi.setLocation(rect.x+offsetRect.x, rect.y+offsetRect.y);
-				maskimp.close();		
-				if(roi!=null){
-					Roi[] split = new ShapeRoi(roi).getRois();
-					//if(split.length>50000){
-					//String advice = (sigma<pixW)?"\nApplying a blur of half the minimum radius may give better results.":"";
-					//int ans = JOptionPane.showConfirmDialog(gui, split.length+" objects found in slice "+z+", continue?"+advice, "Continue?", JOptionPane.YES_NO_OPTION);
-					//if(ans==JOptionPane.NO_OPTION){return null;}
-					//}
-					for(int ri=0;ri<split.length;ri++){
-						Roi r = split[ri];
-						int ed = (int)Math.floor(minR/4/pixW)+1;
-						int blurAdjust = 0;
-						if(sigma>pixW){
-							blurAdjust = (int)Math.floor(sigma/pixW);
-						}
+		try{
+			cells = new ArrayList<Roi>();
+			Overlay ol = new Overlay();
+			int start = 1;
+			int end = Z;
+			if(preview){
+				start = imp.getZ();
+				end = start;
+			}
+			int channel = imp.getC();
+			boolean[] usedMean = new boolean[means.length];
+			threshold = -1d;
+			if(!thresholdMethod.equals("None")){
+				IJ.setAutoThreshold(proc, thresholdMethod+" dark stack");
+				threshold = proc.getProcessor().getMinThreshold();
+			}
 
-						boolean tooSmall = false;
-						try{
-							r = RoiEnlarger.enlarge(r, -ed);
-						}catch(ArrayIndexOutOfBoundsException oob){	//from ThresholdToSelection, caused by trying to convert threshold to ShapeRoi with a mask that has no signal
-							tooSmall = true;	//if oob was thrown, the erosion completely removed the Roi
-						}
-						if(!tooSmall){
+			for(int z=start;z<=end;z++){						//for each slice
+				ByteProcessor outip = new ByteProcessor(W, H);
+				outip.setColor(Color.WHITE);
+				for(int m=0; m<means.length; m++){
+					IJ.setThreshold(proc, means[m], Integer.MAX_VALUE);			//means in increasing order
+					proc.setPositionWithoutUpdate(channel, z, 1);
+					ImageProcessor procip = proc.getProcessor();
+					procip.setColor(Color.BLACK);			
+					if(procip.getStatistics().mean==0) continue;		//ThresholdToSelection throws ArrayIndexOutOfBoundsException if image is empty
+					Roi roi = null;
+					try{
+						roi = tts.convert(procip);
+					}catch(ArrayIndexOutOfBoundsException oob){continue;}	//ignore ArrayIndexOutOfBoundsException from ThresholdToSelection
+					if(roi==null)continue;
+					Rectangle offsetRect = roi.getBounds();
+					procip.setRoi(roi);
+					ImageProcessor mask = procip.getMask();		//returns null if the Roi is regular, eg a rectangle covering the whole image
+					if(mask==null){
+						continue;
+					}
+					ImagePlus maskimp = new ImagePlus("mask", mask);
+					if(watershed){
+						IJ.run(maskimp, "Watershed", "");
+					}
+					if(mask.getStatistics().mean==0) continue;
+					try{
+						roi = tts.convert(mask);
+					}catch(ArrayIndexOutOfBoundsException oob){continue;}	//ignore ArrayIndexOutOfBoundsException from ThresholdToSelection
+					if(roi==null)continue;	
+					Rectangle rect = roi.getBounds();
+					roi.setLocation(rect.x+offsetRect.x, rect.y+offsetRect.y);
+					maskimp.close();		
+					if(roi!=null){
+						Roi[] split = new ShapeRoi(roi).getRois();
+						//if(split.length>50000){
+						//String advice = (sigma<pixW)?"\nApplying a blur of half the minimum radius may give better results.":"";
+						//int ans = JOptionPane.showConfirmDialog(gui, split.length+" objects found in slice "+z+", continue?"+advice, "Continue?", JOptionPane.YES_NO_OPTION);
+						//if(ans==JOptionPane.NO_OPTION){return null;}
+						//}
+						for(int ri=0;ri<split.length;ri++){
+							Roi r = split[ri];
+							int ed = (int)Math.floor(minR/4/pixW)+1;
+							int blurAdjust = 0;
+							if(sigma>pixW){
+								blurAdjust = (int)Math.floor(sigma/pixW);
+							}
+
+							boolean tooSmall = false;
 							try{
-								r = RoiEnlarger.enlarge(r, ed-blurAdjust);
-							}catch(ArrayIndexOutOfBoundsException oob){continue;}
-							if(onEdge(r)){
+								r = RoiEnlarger.enlarge(r, -ed);
+							}catch(ArrayIndexOutOfBoundsException oob){	//from ThresholdToSelection, caused by trying to convert threshold to ShapeRoi with a mask that has no signal
+								tooSmall = true;	//if oob was thrown, the erosion completely removed the Roi
+							}
+							if(!tooSmall){
+								try{
+									r = RoiEnlarger.enlarge(r, ed-blurAdjust);
+								}catch(ArrayIndexOutOfBoundsException oob){continue;}
+								if(onEdge(r)){
+									continue;
+								}
+							}
+							procip.setRoi(r);
+							ImageStatistics procStats = ImageStatistics.getStatistics(procip, ImageStatistics.AREA+ImageStatistics.MEAN, cal);
+							outip.setRoi(r);
+							if(outip.getStatistics().mean > 0){ //already added
 								continue;
 							}
-						}
-						procip.setRoi(r);
-						ImageStatistics procStats = ImageStatistics.getStatistics(procip, ImageStatistics.AREA+ImageStatistics.MEAN, cal);
-						outip.setRoi(r);
-						if(outip.getStatistics().mean > 0){ //already added
-							continue;
-						}
-						if( procStats.area>=minA && procStats.area<=maxA && procStats.mean>=threshold ){
-							r.setPosition(z);
-							r.setStroke(config.stroke);
-							if(Z==1&&C>1){r.setPosition(channel);}
-							if(preview){	//add overlay for previews using hierarchy level colours
-								r.setStrokeColor(previewColours[m]);
-								ol.add(r);
+							if( procStats.area>=minA && procStats.area<=maxA && procStats.mean>=threshold ){
+								r.setPosition(z);
+								r.setStroke(config.stroke);
+								if(Z==1&&C>1){r.setPosition(channel);}
+								if(preview){	//add overlay for previews using hierarchy level colours
+									r.setStrokeColor(previewColours[m]);
+									ol.add(r);
+								}
+								cells.add(r);	
+								outip.fill(r); //add to the binary mask (white)
+								procip.fill(r); //remove from the thresholding image (black)
+								usedMean[m] = true;
 							}
-							cells.add(r);	
-							outip.fill(r); //add to the binary mask (white)
-							procip.fill(r); //remove from the thresholding image (black)
-							usedMean[m] = true;
-						}
-						else if(showBad){
-							Roi bad = r;
-							bad.setPosition(1, z, 1);
-							bad.setStroke(config.dottedStroke);
-							bad.setStrokeColor(Color.YELLOW);
-							ol.add(bad);
+							else if(showBad){
+								Roi bad = r;
+								bad.setPosition(1, z, 1);
+								bad.setStroke(config.dottedStroke);
+								bad.setStrokeColor(Color.YELLOW);
+								ol.add(bad);
+							}
 						}
 					}
 				}
+				proc.close();
 			}
-			//if(true){proc.show();return;}
-			proc.close();
+			ArrayList<Double> keepmeans = new ArrayList<Double>();
+			for(int m=0;m<means.length;m++){
+				if(usedMean[m]){keepmeans.add(means[m]);}
+			}
+			k = keepmeans.size();
+			means = new double[k];
+			for(int m=0;m<k;m++){
+				means[m] = keepmeans.get(m);
+			}
+			if(k==0){
+				IJ.error("HKM Segment", "No objects found.\nTry increasing K and setting blur radius to half the minimum radius.");
+			}
+			imp.setOverlay(ol);
 		}
-		ArrayList<Double> keepmeans = new ArrayList<Double>();
-		for(int m=0;m<means.length;m++){
-			if(usedMean[m]){keepmeans.add(means[m]);}
+		catch(ArrayIndexOutOfBoundsException oob){
+			System.out.print(oob.toString()+" in extractObjects\n~~~~~\n"+Arrays.toString(oob.getStackTrace()).replace(",","\n"));
 		}
-		k = keepmeans.size();
-		means = new double[k];
-		for(int m=0;m<k;m++){
-			means[m] = keepmeans.get(m);
-		}
-		if(k==0){
-			IJ.error("HKM Segment", "No objects found.\nTry increasing K and setting blur radius to half the minimum radius.");
-		}
-		imp.setOverlay(ol);
-	}
-	catch(ArrayIndexOutOfBoundsException oob){
-		System.out.print(oob.toString()+" in extractObjects\n~~~~~\n"+Arrays.toString(oob.getStackTrace()).replace(",","\n"));
-	}
-	catch(Exception e){System.out.print(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
+		catch(Exception e){System.out.print(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
 		return cells;
 	}
 	
@@ -509,7 +509,7 @@ private static final String helpText = "<html>"+
 					if(Z>1){
 						minV = (4d/3d)*Math.PI*(minR*minR*minR);
 					}
-					else{ minV = minA; }
+					else{ minV = minA*pixD; }
 					maxA = Math.PI*(maxR*maxR);
 					if(ae.getSource()==previewButton){
 						Runnable run = new Runnable(){
@@ -660,12 +660,10 @@ private static final String helpText = "<html>"+
 			previewColours = ColourSets.heatmap(hc.getK());
 		//long time0 = System.nanoTime();
 			extractObjects(preview);
-		//IJ.log( "extractObjects "+((System.nanoTime()-time0)/1000000000f)+" sec" );
-System.out.println(cells.size()+" cells");			
+		//IJ.log( "extractObjects "+((System.nanoTime()-time0)/1000000000f)+" sec" );			
 			if(!preview){
 				double join = maxR;
-				Volumiser vol = new Volumiser(imp, join, minV); //FIXME: Volumiser doesn't work, Rois passed to it not being found correctly in 3D?
-				//Volumiser vol = new Volumiser(imp, join, minV/6d);
+				Volumiser vol = new Volumiser(imp, join, minV);
 				ArrayList<Object3D> o3d = vol.getVolumes( cells );
 				output(o3d);
 			}

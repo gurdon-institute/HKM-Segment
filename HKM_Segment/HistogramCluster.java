@@ -1,4 +1,3 @@
-import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -28,7 +27,6 @@ private int k;
 		imin = stats.min;
 		imax = stats.max;
 		double binW = stats.binSize; //imax/n;
-		//int Z = imp.getNSlices();
 		histCounts = stats.histogram; //always use the stack histogram, even for previews
 		int n = histCounts.length;	//256
 		histValues = new double[n];
