@@ -51,7 +51,7 @@ public class HKM_Segment implements PlugIn{
 private JFrame gui, helpFrame;
 private CardLayout card;
 private JTextField kField, blurField, minField, maxField;
-private JCheckBox watershedTick, badTick;
+private JCheckBox watershedTick, badTick, overlayToggle;
 private JButton previewButton, okButton, cancelButton, targetButton, helpButton, minMeasureButton, maxMeasureButton, configButton;
 private static final String[] methods = {"None", "Huang", "IsoData", "Li", "MaxEntropy",
 										 "Mean", "Minimum", "Moments", "Otsu", "Percentile", 
@@ -62,12 +62,12 @@ private JComboBox<String> thresholdCombo;
 private ActionListener listener;
 private ImagePlus imp, proc;
 private Calibration cal;
+private Overlay ol;
 private ResultsTable results;
 private ThresholdToSelection tts = new ThresholdToSelection();
 
 private double pixW, pixD, minA, maxA, minV, threshold;
-private String unit;
-private String Vunit;
+private String unit, Vunit;
 private double minR = Prefs.get("HKM_Segment.minR", 5.0);
 private double maxR = Prefs.get("HKM_Segment.maxR", 30.0);
 private double sigma = Prefs.get("HKM_Segment.sigma", 0.0);
@@ -79,6 +79,7 @@ private double[] means;
 private ArrayList<Roi> cells;
 private boolean watershed = Prefs.get("HKM_Segment.watershed", false);
 private boolean showBad = Prefs.get("HKM_Segment.showBad", true);
+private boolean showOverlay = true;
 private TargetTable target;
 private static final String helpText = "<html>"+
 "<head>"+
@@ -163,7 +164,7 @@ private static final String helpText = "<html>"+
 		pixD = cal.pixelDepth;
 		unit = cal.getUnit();
 		if(unit.matches("[Mm]icrons?")){unit = "\u00B5m";}
-		Vunit = " ("+unit+"^3)";
+		Vunit = " ("+unit+"\u00B3)";
 		imp.setOverlay(null);
 		imp.killRoi();
 		return true;
@@ -193,7 +194,7 @@ private static final String helpText = "<html>"+
 	private ArrayList<Roi> extractObjects(boolean preview){
 		try{
 			cells = new ArrayList<Roi>();
-			Overlay ol = new Overlay();
+			ol = new Overlay();
 			int start = 1;
 			int end = Z;
 			if(preview){
@@ -312,7 +313,7 @@ private static final String helpText = "<html>"+
 			if(k==0){
 				IJ.error("HKM Segment", "No objects found.\nTry increasing K and setting blur radius to half the minimum radius.");
 			}
-			imp.setOverlay(ol);
+			if(showOverlay) imp.setOverlay(ol);
 		}
 		catch(ArrayIndexOutOfBoundsException oob){
 			System.out.print(oob.toString()+" in extractObjects\n~~~~~\n"+Arrays.toString(oob.getStackTrace()).replace(",","\n"));
@@ -331,12 +332,13 @@ private static final String helpText = "<html>"+
 			if(IJ.isMacro()){ results = ResultsTable.getResultsTable(); }
 			results.setPrecision(3);
 			results.showRowNumbers(false);
-			Overlay ol = imp.getOverlay();
+			ol = imp.getOverlay();
 			if(ol==null) ol = new Overlay();
 			int row = results.getCounter();
 			int startC = imp.getChannel();
 			int startZ = imp.getSlice();
 			for(int i=0;i<objects.size();i++){
+				
 				Object3D obj = objects.get(i);
 				double[] sum = new double[C+1];
 				int[] count = new int[C+1];
@@ -353,9 +355,7 @@ private static final String helpText = "<html>"+
 					if(Z==1){
 						roi.setPosition(0, 0, 0);
 					}
-					
 					ol.add(roi);
-					
 				}
 
 				if(!IJ.isMacro()){
@@ -369,6 +369,7 @@ private static final String helpText = "<html>"+
 						results.setValue("C"+c+" Mean", row, mean);
 					}
 				}
+				
 				row++;
 				TextRoi marker3D = new TextRoi((obj.centroid.x/pixW)-(config.fontS/4), (obj.centroid.y/pixW)-(config.fontS/2), ""+(i+1), config.labelFont);
 				if(Z==1){
@@ -479,11 +480,11 @@ private static final String helpText = "<html>"+
 		if(gui==null){
 			listener = new ActionListener(){
 				public void actionPerformed(ActionEvent ae){
+					
 					if(ae.getSource()==cancelButton){
 						gui.dispose();
 						return;
 					}
-					
 					if (ae.getSource()==minMeasureButton){
 						double roiL = measureRoi(minR);
 						minField.setText( String.format("%.2f",roiL) );
@@ -556,6 +557,15 @@ private static final String helpText = "<html>"+
 					else if(ae.getSource()==configButton){
 						config.display();
 					}
+					else if(ae.getSource()==overlayToggle){
+						showOverlay = overlayToggle.isSelected();
+						if(showOverlay){
+							imp.setOverlay(ol);
+						}
+						else{
+							imp.setOverlay(null);
+						}
+					}
 				}
 			};
 			
@@ -587,9 +597,6 @@ private static final String helpText = "<html>"+
 			tickPanel.add(watershedTick);
 			badTick = new JCheckBox("Show Rejected Objects", showBad);
 			tickPanel.add(badTick);
-			configButton = new MButton(MButton.Type.CONFIG);
-			configButton.addActionListener(listener);
-			tickPanel.add(configButton);
 			main.add(tickPanel);
 			previewButton = new JButton("Preview");
 			previewButton.addActionListener(listener);
@@ -602,6 +609,16 @@ private static final String helpText = "<html>"+
 			helpButton = new JButton("?");
 			helpButton.setMargin(new Insets(0,5,0,5));
 			helpButton.addActionListener(listener);
+			
+			JPanel optionPanel = new JPanel();
+			overlayToggle = new JCheckBox("Show Overlay", showOverlay);
+			overlayToggle.addActionListener(listener);
+			optionPanel.add(overlayToggle);
+			configButton = new MButton(MButton.Type.CONFIG);
+			configButton.addActionListener(listener);
+			optionPanel.add(configButton);
+			main.add(optionPanel);
+			
 			JPanel buttonPanel = new JPanel();
 			buttonPanel.add(previewButton);
 			buttonPanel.add(okButton);

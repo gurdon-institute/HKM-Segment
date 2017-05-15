@@ -1,13 +1,13 @@
 import java.awt.BasicStroke;
 import java.awt.Font;
 import java.awt.Frame;
+import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JDialog;
-import javax.swing.JLabel;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerModel;
 import javax.swing.SpinnerNumberModel;
@@ -29,8 +29,9 @@ public class HKMConfig extends JDialog implements ActionListener{
 	
 	protected HKMConfig(){
 		super((Frame)null, "HKM Config", false);
+		setIconImage(Toolkit.getDefaultToolkit().getImage(getClass().getResource("logo_icon.gif")));
 		setLayout(new BoxLayout(getContentPane(), BoxLayout.Y_AXIS));
-		add(new JLabel("Overlay Options", JLabel.CENTER));
+		add(HKM_Segment.guiPanel("Overlay Options"));
 		SpinnerModel sm = new SpinnerNumberModel(strokeW, 0.5f, 10f, 0.5f);
 		strokeSpin = new JSpinner(sm);
 		add(HKM_Segment.guiPanel("Stroke Width:", strokeSpin));
