@@ -687,8 +687,13 @@ private static final String helpText = "<html>"+
 			setPrefs();
 			
 			if(isMacro){
-				IJ.run("ROI Manager...", "");
-				RoiManager rm = RoiManager.getInstance();
+				/*IJ.run("ROI Manager...", "");
+				RoiManager rm = RoiManager.getInstance();	//fubar in IJ2
+				if(rm==null){
+					rm = new RoiManager();
+				}*/
+				RoiManager rm = new RoiManager();
+				rm = RoiManager.getInstance2();	//new method in IJ2
 				for(Roi cell : cells){
 					Roi olRoi = (Roi)cell.clone();
 					olRoi.setPosition(0);	//remove position info
@@ -737,4 +742,5 @@ private static final String helpText = "<html>"+
 		}
 	}catch(Exception e){IJ.log(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
 	}
+	
 }
