@@ -1,40 +1,21 @@
 package uk.ac.cam.gurdon;
-import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.GridLayout;
-import java.awt.Insets;
 import java.awt.Rectangle;
-import java.awt.Toolkit;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-import javax.swing.Box;
-import javax.swing.BoxLayout;
-import javax.swing.ImageIcon;
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JEditorPane;
-import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTextField;
 
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
 import org.scijava.command.Command;
 import org.scijava.plugin.Plugin;
 
 import ij.IJ;
 import ij.ImagePlus;
 import ij.Macro;
-import ij.Prefs;
 import ij.WindowManager;
 import ij.gui.Line;
 import ij.gui.Overlay;
@@ -44,8 +25,6 @@ import ij.gui.TextRoi;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
 import ij.plugin.Duplicator;
-import ij.plugin.HyperStackConverter;
-import ij.plugin.PlugIn;
 import ij.plugin.RoiEnlarger;
 import ij.plugin.filter.ThresholdToSelection;
 import ij.plugin.frame.Recorder;
@@ -53,88 +32,40 @@ import ij.plugin.frame.RoiManager;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ij.process.ImageStatistics;
-import net.imagej.ImageJ;
 
 
 @Plugin(type = Command.class, menuPath = "Plugins>HKM Segment")
 public class HKM_Segment implements Command{
 	
-private JFrame gui, helpFrame;
-private CardLayout card;
-private JTextField kField, blurField, minField, maxField;
-private JCheckBox watershedTick, badTick, overlayToggle;
-private JButton previewButton, okButton, cancelButton, targetButton, helpButton, minMeasureButton, maxMeasureButton, configButton;
+
 private static final String[] methods = {"None", "Huang", "IsoData", "Li", "MaxEntropy",
 										 "Mean", "Minimum", "Moments", "Otsu", "Percentile", 
 										 "RenyiEntropy", "Shanbhag", "Triangle", "Yen" };
 
-private HKMConfig config = new HKMConfig();
-private JComboBox<String> thresholdCombo;
-private ActionListener listener;
-private ImagePlus imp, proc;
+HKMConfig config = new HKMConfig();
+ImagePlus imp;
+
+private ImagePlus proc;
 private Calibration cal;
 private Overlay ol;
 private ResultsTable results;
-private ThresholdToSelection tts = new ThresholdToSelection();
 
-private double pixW, pixD, minA, maxA, minV, threshold;
-private String unit, Vunit;
-private double minR = Prefs.get("HKM_Segment.minR", 5.0);
-private double maxR = Prefs.get("HKM_Segment.maxR", 30.0);
-private double sigma = Prefs.get("HKM_Segment.sigma", 0.0);
+private double pixW;
+
+double pixD;
+
+private double threshold;
+String unit;
+
+private String Vunit;
 private int W, H, C, Z, k;
-private int startK = (int)Prefs.get("HKM_Segment.startK", 10);
-private String thresholdMethod = Prefs.get("HKM_Segment.thresholdMethod", "None");
 private Color[] previewColours;
 private double[] means;
 private ArrayList<Roi> cells;
-private boolean watershed = Prefs.get("HKM_Segment.watershed", false);
-private boolean showBad = Prefs.get("HKM_Segment.showBad", true);
-private boolean showOverlay = true;
+
+private HKMGUI gui;
+
 private TargetTable target;
-private static final String helpText = "<html>"+
-"<head>"+
-"<style>"+
-"body{"+
-"	padding: 10px;"+
-"	font-family: sans-serif;"+
-"	font-size: 12px;"+
-"	width: 800px;"+
-"}"+
-"h4{"+
-"	text-align: center;"+
-"	font-weight: bold;"+
-"	font-size: 16px;"+
-"}"+
-"ul{"+
-"	list-style-type: none;"+
-"}"+
-"</style>"+
-"</head>"+
-"<body>"+
-"<h4>HKM Segment</h4>"+
-"<p>"+
-"HKM Segment for ImageJ is inspired by Alexandre Dufour's Hierarchical K-Means segmentation algorithm [1], available in icy [2]. In this implementation, agglomerative K-Means clustering is applied to the image histogram to determine K threshold levels, which are applied in ascending order to extract objects within the specified size range set as radii.<br>"+
-"The Watershed transform can be applied to the intermediate binary images, and a thresholding algorithm can be chosen to filter out objects of low intensity, giving robust results in biological images without requiring subsequent level-sets segmentation. When object have been extracted, they are clustered in 3D to reconstruct objects based on the specified size range.<br>"+
-"When run on a multi-channel stack, objects are mapped in the currently displayed channel and measured in all channels. Select a row in the results table and press the \"target\" button to highlight the object location in the image. "+
-"</p>"+
-"<ul>"+
-"<li><b>Starting K</b> - the initial number of intensity sub-populations.</li>"+
-"<li><b>Blur Radius</b> - the sigma value of the Gaussian blur applied to the image before segmentation. Set to 0 to disable.</li>"+
-"<li><b>Object Radius</b> - the radius range of objects to be detected, used to calculate areas in 2D and volumes in 3D assuming circular and spherical objects respectively.</li>"+
-"<li><b>Threshold</b> - the automatic thresholding algorithm used to determine the required mean object intensity for inclusion.</li>"+
-"<li><b>Watershed</b> - apply the 2D Watershed transform to the binary image at each intensity level.</li>"+
-"<li><b>Show Rejected Objects</b> - show objects that were detected but do not meet the filtering criteria. Useful when testing parameters to see what is being excluded.</li>"+
-"</ul>"+
-"<ul style=\"font-size:10px\">"+
-"<li>1) Dufour A, Meas-Yedid V, Grassart A, and Olivo-Marin JC, \"Automated Quantification of Cell Endocytosis Using Active Contours and Wavelet\", Proc. ICPR 2008, Tampa, FL, USA.</li>"+
-"<li>2) de Chaumont F, Dallongeville S, Chenouard N et al. \"Icy: an open bioimage informatics platform for extended reproducible research\" Nature Methods. 2012;9(7):690-696. doi:10.1038/nmeth.2075.</li>"+
-"</ul>"+
-"<p style='font-size:8px;font-style:italic;'>Copyright 2016, 2017 Richard Butler<br>"+
-"HKM Segment is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. HKM Segment is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.<br>"+
-"You should have received a copy of the GNU General Public License along with HKM Segment.  If not, see http://www.gnu.org/licenses/.</p>"+
-"</body>"+
-"</html>";
 
 	public HKM_Segment(){
 		setImage();
@@ -147,7 +78,7 @@ private static final String helpText = "<html>"+
 	private void record(){
 		Recorder.getInstance();
 		if(Recorder.record){
-			String args = "startK="+startK+" blur="+sigma+" minR="+minR+" maxR="+maxR+" threshold="+thresholdMethod+" watershed="+watershed;
+			String args = "startK="+gui.startK+" blur="+gui.sigma+" minR="+gui.minR+" maxR="+gui.maxR+" threshold="+gui.thresholdMethod+" watershed="+gui.watershed;
 			String rec = "run(\"HKM Segment\", \""+args+"\");\n";
 			Recorder.recordString(rec);
 		}
@@ -199,11 +130,12 @@ private static final String helpText = "<html>"+
 		}
 		int channel = imp.getC();
 		proc = new Duplicator().run(imp, channel, channel, start, end, 1, 1);
-		IJ.run(proc, "Gaussian Blur...", "sigma="+sigma+" scaled stack");
+		IJ.run(proc, "Gaussian Blur...", "sigma="+gui.sigma+" scaled stack");
 	}
 	
 	private ArrayList<Roi> extractObjects(boolean preview){
 		try{
+			ThresholdToSelection tts = new ThresholdToSelection();
 			cells = new ArrayList<Roi>();
 			ol = new Overlay();
 			int start = 1;
@@ -215,8 +147,8 @@ private static final String helpText = "<html>"+
 			int channel = imp.getC();
 			boolean[] usedMean = new boolean[means.length];
 			threshold = -1d;
-			if(!thresholdMethod.equals("None")){
-				IJ.setAutoThreshold(proc, thresholdMethod+" dark stack");
+			if(!gui.thresholdMethod.equals("None")){
+				IJ.setAutoThreshold(proc, gui.thresholdMethod+" dark stack");
 				threshold = proc.getProcessor().getMinThreshold();
 			}
 
@@ -241,7 +173,7 @@ private static final String helpText = "<html>"+
 						continue;
 					}
 					ImagePlus maskimp = new ImagePlus("mask", mask);
-					if(watershed){
+					if(gui.watershed){
 						IJ.run(maskimp, "Watershed", "");
 					}
 					if(mask.getStatistics().mean==0) continue;
@@ -254,17 +186,12 @@ private static final String helpText = "<html>"+
 					maskimp.close();		
 					if(roi!=null){
 						Roi[] split = new ShapeRoi(roi).getRois();
-						//if(split.length>50000){
-						//String advice = (sigma<pixW)?"\nApplying a blur of half the minimum radius may give better results.":"";
-						//int ans = JOptionPane.showConfirmDialog(gui, split.length+" objects found in slice "+z+", continue?"+advice, "Continue?", JOptionPane.YES_NO_OPTION);
-						//if(ans==JOptionPane.NO_OPTION){return null;}
-						//}
 						for(int ri=0;ri<split.length;ri++){
 							Roi r = split[ri];
-							int ed = (int)Math.floor(minR/4/pixW)+1;
+							int ed = (int)Math.floor(gui.minR/4/pixW)+1;
 							int blurAdjust = 0;
-							if(sigma>pixW){
-								blurAdjust = (int)Math.floor(sigma/pixW);
+							if(gui.sigma>pixW){
+								blurAdjust = (int)Math.floor(gui.sigma/pixW);
 							}
 
 							boolean tooSmall = false;
@@ -287,7 +214,7 @@ private static final String helpText = "<html>"+
 							if(outip.getStatistics().mean > 0){ //already added
 								continue;
 							}
-							if( procStats.area>=minA && procStats.area<=maxA && procStats.mean>=threshold ){
+							if( procStats.area>=gui.minA && procStats.area<=gui.maxA && procStats.mean>=threshold ){
 								r.setPosition(z);
 								r.setStroke(config.stroke);
 								if(Z==1&&C>1){r.setPosition(channel);}
@@ -300,7 +227,7 @@ private static final String helpText = "<html>"+
 								procip.fill(r); //remove from the thresholding image (black)
 								usedMean[m] = true;
 							}
-							else if(showBad){
+							else if(gui.showBad){
 								Roi bad = r;
 								bad.setPosition(1, z, 1);
 								bad.setStroke(config.dottedStroke);
@@ -324,7 +251,7 @@ private static final String helpText = "<html>"+
 			if(k==0){
 				IJ.error("HKM Segment", "No objects found.\nTry increasing K and setting blur radius to half the minimum radius.");
 			}
-			if(showOverlay) imp.setOverlay(ol);
+			if(gui.showOverlay) imp.setOverlay(ol);
 		}
 		catch(ArrayIndexOutOfBoundsException oob){
 			System.out.print(oob.toString()+" in extractObjects\n~~~~~\n"+Arrays.toString(oob.getStackTrace()).replace(",","\n"));
@@ -397,7 +324,7 @@ private static final String helpText = "<html>"+
 			//if(IJ.isMacro()){ results.show("Results"); }
 			//else{ results.show(imp.getTitle()+"-HKM Segmentation"); }
 			if(!IJ.isMacro()){ results.show(imp.getTitle()+"-HKM Segmentation"); }	//don't show table if run from macro - probably only the Rois needed
-		}catch(Exception e){IJ.log(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
+		}catch(Exception e){System.out.println(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
 		finally{ if(imp.getWindow()!=null) imp.getWindow().setVisible(true); }
 	}
 	
@@ -419,7 +346,7 @@ private static final String helpText = "<html>"+
 		return panel;
 	}
 	
-	private static int getInt(String text){
+	static int getInt(String text){
 		int i;
 		try{
 			i = Integer.parseInt(text);
@@ -429,7 +356,7 @@ private static final String helpText = "<html>"+
 		}
 		return i;
 	}
-	private static double getDouble(String text){
+	static double getDouble(String text){
 		double d;
 		try{
 			d = Double.valueOf(text);
@@ -440,35 +367,35 @@ private static final String helpText = "<html>"+
 		return d;
 	}
 	
-	private boolean validParameters(){
-		if(startK<2){
+	boolean validParameters(){
+		if(gui.startK<2){
 			IJ.error("HKM Segment", "Starting K should be at least 2.");
 			return false;
 		}
-		if(startK>256){
+		if(gui.startK>256){
 			IJ.error("HKM Segment", "Starting K should be no greater than 256");
 			return false;
 		}
-		if(sigma<0){
+		if(gui.sigma<0){
 			IJ.error("HKM Segment", "Blur Radius cannot be negative.");
 			return false;
 		}
-		if(minR<0||maxR<0){
+		if(gui.minR<0||gui.maxR<0){
 			IJ.error("HKM Segment", "Object radius cannot be negative.");
 			return false;
 		}
-		if(minR>=maxR){
+		if(gui.minR>=gui.maxR){
 			IJ.error("HKM Segment", "Minimum radius should be smaller than maximum radius.");
 			return false;
 		}
-		if(!Arrays.asList(methods).contains(thresholdMethod)){
-			IJ.error("HKM Segment", "Unknown thresholding method : "+thresholdMethod);
+		if(!Arrays.asList(methods).contains(gui.thresholdMethod)){
+			IJ.error("HKM Segment", "Unknown thresholding method : "+gui.thresholdMethod);
 			return false;
 		}
 		return true;
 	}
 	
-	private double measureRoi(double current){
+	double measureRoi(double current){
 		Roi roi = imp.getRoi();
 		double size = current;
 		if(imp==null||imp.getRoi()==null){
@@ -487,188 +414,14 @@ private static final String helpText = "<html>"+
 		return size;
 	}
 	
-	public JFrame showGui(){
-		if(gui==null){
-			listener = new ActionListener(){
-				public void actionPerformed(ActionEvent ae){
-					
-					if(ae.getSource()==cancelButton){
-						gui.dispose();
-						return;
-					}
-					if (ae.getSource()==minMeasureButton){
-						double roiL = measureRoi(minR);
-						minField.setText( String.format("%.2f",roiL) );
-						return;
-					}
-					else if (ae.getSource()==maxMeasureButton){
-						double roiL = measureRoi(maxR);
-						maxField.setText(String.format("%.2f",roiL));
-						return;
-					}
-					
-					startK = getInt(kField.getText());
-					sigma = getDouble(blurField.getText());
-					minR = getDouble(minField.getText());
-					maxR = getDouble(maxField.getText());
-					thresholdMethod = (String)thresholdCombo.getSelectedItem();
-					watershed = watershedTick.isSelected();
-					showBad = badTick.isSelected();
-					
-					if(!validParameters()){return;}
-					
-					minA = Math.PI*(minR*minR);
-					if(Z>1){
-						minV = (4d/3d)*Math.PI*(minR*minR*minR);
-					}
-					else{ minV = minA*pixD; }
-					maxA = Math.PI*(maxR*maxR);
-					if(ae.getSource()==previewButton){
-						Runnable run = new Runnable(){
-							public void run(){
-								try{
-									segment(true, false);
-								}catch(Exception e){IJ.log(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
-							}
-						};
-						new Thread(run).start();
-					}
-					else if(ae.getSource()==okButton){
-						Runnable run = new Runnable(){
-							public void run(){
-								try{
-									segment(false, false);
-								}catch(Exception e){IJ.log(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
-							}
-						};
-						new Thread(run).start();
-					}
-					else if (ae.getSource()==targetButton){
-						if(imp==null||results==null){
-							IJ.error("HKM_Segment", "This function highlights the location of the selected results table object in the current image.");
-							return;
-						}
-						if(target==null){
-							target = new TargetTable(imp, results);
-						}
-						target.target();
-					}
-					else if (ae.getSource()==helpButton){
-						if(helpFrame==null){
-							helpFrame = new JFrame();
-							JEditorPane textPane = new JEditorPane("text/html", helpText);
-							textPane.setEditable(false);
-							JScrollPane scrollPane = new JScrollPane(textPane, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-							helpFrame.add(scrollPane);
-							helpFrame.pack();
-						}
-						helpFrame.setLocationRelativeTo(null);
-						helpFrame.setVisible(true);
-					}
-					else if(ae.getSource()==configButton){
-						config.display();
-					}
-					else if(ae.getSource()==overlayToggle){
-						showOverlay = overlayToggle.isSelected();
-						if(showOverlay){
-							imp.setOverlay(ol);
-						}
-						else{
-							imp.setOverlay(null);
-						}
-					}
-				}
-			};
-			
-			gui = new JFrame("HKM Segment");
-			gui.setIconImage(Toolkit.getDefaultToolkit().getImage(getClass().getResource("logo_icon.gif")));
-			card = new CardLayout();
-			gui.setLayout(card);
-			JPanel main = new JPanel();
-			main.setLayout(new BoxLayout(main, BoxLayout.Y_AXIS));
-			JPanel logoPanel = new JPanel();
-			logoPanel.add(new JLabel(new ImageIcon(Toolkit.getDefaultToolkit().getImage(getClass().getResource("logo_borded_336x104.gif")))));
-			main.add(logoPanel);
-			kField = new JTextField(""+startK, 3);
-			main.add(guiPanel("Starting K:", kField));
-			blurField = new JTextField(""+sigma, 3);
-			main.add(guiPanel("Blur Radius:", blurField, unit));
-			minField = new JTextField(""+minR, 6);
-			maxField = new JTextField(""+maxR, 6);
-			minMeasureButton = new MButton(MButton.Type.MEASURE);
-			minMeasureButton.addActionListener(listener);
-			maxMeasureButton = new MButton(MButton.Type.MEASURE);
-			maxMeasureButton.addActionListener(listener);
-			main.add(guiPanel("Object Radius",minField, minMeasureButton, "to", maxField, maxMeasureButton, unit));
-			thresholdCombo = new JComboBox<String>(methods);
-			thresholdCombo.setSelectedItem(thresholdMethod);
-			main.add(guiPanel("Threshold:", thresholdCombo));
-			JPanel tickPanel = new JPanel();
-			watershedTick = new JCheckBox("Watershed", watershed);
-			tickPanel.add(watershedTick);
-			badTick = new JCheckBox("Show Rejected Objects", showBad);
-			tickPanel.add(badTick);
-			main.add(tickPanel);
-			previewButton = new JButton("Preview");
-			previewButton.addActionListener(listener);
-			okButton = new JButton("OK");
-			okButton.addActionListener(listener);
-			cancelButton = new JButton("Cancel");
-			cancelButton.addActionListener(listener);
-			targetButton = new JButton("Target");
-			targetButton.addActionListener(listener);
-			helpButton = new JButton("?");
-			helpButton.setMargin(new Insets(0,5,0,5));
-			helpButton.addActionListener(listener);
-			
-			JPanel optionPanel = new JPanel();
-			overlayToggle = new JCheckBox("Show Overlay", showOverlay);
-			overlayToggle.addActionListener(listener);
-			optionPanel.add(overlayToggle);
-			configButton = new MButton(MButton.Type.CONFIG);
-			configButton.addActionListener(listener);
-			optionPanel.add(configButton);
-			main.add(optionPanel);
-			
-			JPanel buttonPanel = new JPanel();
-			buttonPanel.add(previewButton);
-			buttonPanel.add(okButton);
-			buttonPanel.add(cancelButton);
-			buttonPanel.add(Box.createHorizontalStrut(20));
-			buttonPanel.add(helpButton);
-			buttonPanel.add(targetButton);
-			main.add(buttonPanel);
-			gui.add(main, "main");
-			JPanel working = new JPanel();
-			working.setBackground(Color.WHITE);
-			working.setLayout(new GridLayout(1,1));
-			working.add(new JLabel(new ImageIcon(Toolkit.getDefaultToolkit().getImage(getClass().getResource("HKMworking.gif")))));
-			gui.add(working, "working");
-		}
-		gui.pack();
-		gui.setLocationRelativeTo(null);
-		gui.setVisible(true);
-		return gui;
-	}
-	
-	private void setPrefs(){
-		Prefs.set("HKM_Segment.minR", minR);
-		Prefs.set("HKM_Segment.maxR", maxR);
-		Prefs.set("HKM_Segment.sigma", sigma);
-		Prefs.set("HKM_Segment.startK", startK);
-		Prefs.set("HKM_Segment.thresholdMethod", thresholdMethod);
-		Prefs.set("HKM_Segment.watershed", watershed);
-		Prefs.set("HKM_Segment.showBad", showBad);
-	}
-	
 	public void segment(){
 		segment(false, false);
 	}
 	
-	private void segment(final boolean preview, final boolean isMacro){
+	void segment(final boolean preview, final boolean isMacro){
 		try{
 			if(!setImage()){return;}
-			if(!isMacro){ card.show(gui.getContentPane(), "working"); }
+			if(!isMacro){ gui.card.show(gui.getContentPane(), "working"); }
 			
 			if(imp.getBitDepth()==32){
 				IJ.error("32-bit images are not supported.");
@@ -682,20 +435,19 @@ private static final String helpText = "<html>"+
 			processImage(preview);
 			HistogramCluster hc = new HistogramCluster(proc);
 			//if(true){proc.show();return;}
-			int minN = (int)Math.ceil(minA/pixW/pixW);
-			means = hc.getLevels(startK, minN);
+			int minN = (int)Math.ceil(gui.minA/pixW/pixW);
+			means = hc.getLevels(gui.startK, minN);
 			if(means.length<1){IJ.error("Clusters could not be separated. Try decreasing the minimum radius.");return;}
 			previewColours = ColourSets.heatmap(hc.getK());
 		//long time0 = System.nanoTime();
 			extractObjects(preview);
-		//IJ.log( "extractObjects "+((System.nanoTime()-time0)/1000000000f)+" sec" );			
+		//System.out.println( "extractObjects "+((System.nanoTime()-time0)/1000000000f)+" sec" );			
 			if(!preview){
-				double join = maxR;
-				Volumiser vol = new Volumiser(imp, join, minV);
+				double join = gui.maxR;
+				Volumiser vol = new Volumiser(imp, join, gui.minV);
 				ArrayList<Object3D> o3d = vol.getVolumes( cells );
 				output(o3d);
 			}
-			setPrefs();
 			
 			if(isMacro){
 				/*IJ.run("ROI Manager...", "");
@@ -712,14 +464,13 @@ private static final String helpText = "<html>"+
 				}
 			}
 			
-		}catch(Exception e){IJ.log(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
+		}catch(Exception e){System.out.println(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
 		finally{
-			if(!isMacro){ card.show(gui.getContentPane(), "main"); }
+			if(!isMacro){ gui.card.show(gui.getContentPane(), "main"); }
 		}
 	}	
 	
 	public void run(){
-System.out.println("rrr");
 	try{
 		if(IJ.isMacro()){
 			String args = Macro.getOptions();
@@ -727,32 +478,33 @@ System.out.println("rrr");
 				String[] params = args.split(" ");
 				for(String param : params ){
 					String[] kv = param.split("=");
-					if(kv[0].equals("startK")){ startK = getInt(kv[1]); }
-					else if(kv[0].equals("blur")){ sigma = getDouble(kv[1]); }
-					else if(kv[0].equals("minR")){ minR = getDouble(kv[1]); }
-					else if(kv[0].equals("maxR")){ maxR = getDouble(kv[1]); }
-					else if(kv[0].equals("threshold")){  thresholdMethod = kv[1]; }
-					else if(kv[0].equals("watershed")){  watershed = Boolean.valueOf(kv[1]);}
+					if(kv[0].equals("startK")){ gui.startK = getInt(kv[1]); }
+					else if(kv[0].equals("blur")){ gui.sigma = getDouble(kv[1]); }
+					else if(kv[0].equals("minR")){ gui.minR = getDouble(kv[1]); }
+					else if(kv[0].equals("maxR")){ gui.maxR = getDouble(kv[1]); }
+					else if(kv[0].equals("threshold")){  gui.thresholdMethod = kv[1]; }
+					else if(kv[0].equals("watershed")){  gui.watershed = Boolean.valueOf(kv[1]);}
 					else if(kv[0].length()>0){
 						IJ.error("HKM Segment", "Unknown argument: "+kv[0]);
 						return;
 					}
 				}
 				if(!validParameters()){return;}
-				minA = Math.PI*(minR*minR);
+				gui.minA = Math.PI*(gui.minR*gui.minR);
 				if(Z>1){
-					minV = (4d/3d)*Math.PI*(minR*minR*minR);
+					gui.minV = (4d/3d)*Math.PI*(gui.minR*gui.minR*gui.minR);
 				}
-				else{ minV = minA; }
-				maxA = Math.PI*(maxR*maxR);
+				else{ gui.minV = gui.minA; }
+				gui.maxA = Math.PI*(gui.maxR*gui.maxR);
 			}
-			showBad = false;	//don't show rejected objects when called from a macro
+			gui.showBad = false;	//don't show rejected objects when called from a macro
 			segment(false, true);
 		}
 		else{
-			showGui();
+			//showGui();
+			gui = new HKMGUI(this);
 		}
-	}catch(Exception e){IJ.log(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
+	}catch(Exception e){System.out.println(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
 	}
 	
 	public static void main(String[] arg){
@@ -766,6 +518,26 @@ System.out.println("rrr");
 		});
 		
 		new HKM_Segment().run();
+	}
+
+	public void targeter() {
+		if(imp==null||results==null){
+			IJ.error("HKM_Segment", "This function highlights the location of the selected results table object in the current image.");
+			return;
+		}
+		if(target==null){
+			target = new TargetTable(imp, results);
+		}
+		target.target();
+	}
+
+	public void overlay(boolean showOverlay) {
+		if(showOverlay){
+			imp.setOverlay(ol);
+		}
+		else{
+			imp.setOverlay(null);
+		}
 	}
 	
 }

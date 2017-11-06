@@ -24,10 +24,6 @@
   	<dependencies>
 		<dependency>
 			<groupId>net.imagej</groupId>
-			<artifactId>imagej</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>net.imagej</groupId>
 			<artifactId>ij</artifactId>
 		</dependency>
 		<dependency>
@@ -35,33 +31,8 @@
 			<artifactId>imagej-legacy</artifactId>	<!-- reported as unused by maven-dependency-plugin but is required to avoid buggy ImageJ2 GUI -->
 		</dependency>
 		<dependency>
-		    <groupId>log4j</groupId>
-		    <artifactId>log4j</artifactId>
-		    <version>1.2.17</version>
-		</dependency>
-		<dependency>
 		    <groupId>org.scijava</groupId>
 		    <artifactId>scijava-common</artifactId>
-		</dependency>
-		<dependency>
-		    <groupId>net.imglib2</groupId>
-		    <artifactId>imglib2</artifactId>
-		</dependency>
-		<dependency>
-		    <groupId>net.imglib2</groupId>
-		    <artifactId>imglib2-algorithm</artifactId>
-		</dependency>
-		<dependency>
-		    <groupId>io.scif</groupId>
-		    <artifactId>scifio</artifactId>
-		</dependency>
-		<dependency>
-		    <groupId>net.imagej</groupId>
-		    <artifactId>imagej-common</artifactId>
-		</dependency>
-		<dependency>
-		    <groupId>net.imagej</groupId>
-		    <artifactId>imagej-ops</artifactId>
 		</dependency>
 	</dependencies>
   

@@ -8,10 +8,11 @@ import ij.process.ColorProcessor;
 
 public class ColourSets {
 
-	
+	@Deprecated //use heatmap colours instead
 	public static Color[] random(int n){
 		return random(n, false);
 	}
+	@Deprecated //use heatmap colours instead
 	public static Color[] random(int n, boolean showColours){
 		ArrayList<Color> colourList = new ArrayList<Color>();
 		ColorProcessor cp = null; int x = 0;
