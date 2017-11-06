@@ -1,0 +1,130 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  
+  	<parent>
+		<groupId>org.scijava</groupId>
+		<artifactId>pom-scijava</artifactId>
+		<version>13.0.0</version>
+		<relativePath />
+	</parent>
+  
+  <groupId>uk.ac.cam.gurdon</groupId>
+  <artifactId>HKM_Segment</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+  <name>HKM_Segment</name>
+  <description>HKM_Segment</description>
+  
+  <repositories>
+		<repository>
+			<id>imagej.public</id>
+			<url>http://maven.imagej.net/content/groups/public</url>
+		</repository>
+	</repositories>
+  
+  	<dependencies>
+		<dependency>
+			<groupId>net.imagej</groupId>
+			<artifactId>imagej</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.imagej</groupId>
+			<artifactId>ij</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.imagej</groupId>
+			<artifactId>imagej-legacy</artifactId>	<!-- reported as unused by maven-dependency-plugin but is required to avoid buggy ImageJ2 GUI -->
+		</dependency>
+		<dependency>
+		    <groupId>log4j</groupId>
+		    <artifactId>log4j</artifactId>
+		    <version>1.2.17</version>
+		</dependency>
+		<dependency>
+		    <groupId>org.scijava</groupId>
+		    <artifactId>scijava-common</artifactId>
+		</dependency>
+		<dependency>
+		    <groupId>net.imglib2</groupId>
+		    <artifactId>imglib2</artifactId>
+		</dependency>
+		<dependency>
+		    <groupId>net.imglib2</groupId>
+		    <artifactId>imglib2-algorithm</artifactId>
+		</dependency>
+		<dependency>
+		    <groupId>io.scif</groupId>
+		    <artifactId>scifio</artifactId>
+		</dependency>
+		<dependency>
+		    <groupId>net.imagej</groupId>
+		    <artifactId>imagej-common</artifactId>
+		</dependency>
+		<dependency>
+		    <groupId>net.imagej</groupId>
+		    <artifactId>imagej-ops</artifactId>
+		</dependency>
+	</dependencies>
+  
+  <!-- placeholder elements required by maven enforcer start here -->
+  <url>http://mycompany.com/</url>
+	<inceptionYear>2017</inceptionYear>
+	<organization>
+		<name>My Company</name>
+		<url>http://mycompany.com/</url>
+	</organization>
+	<licenses>
+		<license>
+			<name>Simplified BSD License</name>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
+
+	<developers>
+		<!-- See https://imagej.net/Team -->
+		<developer>
+			<id>id</id>
+			<name>name</name>
+			<url>http://imagej.net/</url>
+			<roles>
+				<role>developer</role>
+			</roles>
+		</developer>
+	</developers>
+	<contributors>
+		<contributor>
+			<name>name</name>
+			<url>http://imagej.net/</url>
+			<roles><role>developer</role></roles>
+			<properties><id>id</id></properties>
+		</contributor>
+	</contributors>
+
+	<mailingLists>
+		<mailingList>
+			<name>ImageJ Forum</name>
+			<archive>http://forum.imagej.net/</archive>
+		</mailingList>
+	</mailingLists>
+
+	<scm>
+		<connection>scm:git:git://github.com/imagej/</connection>
+		<developerConnection>scm:git:git@github.com:imagej/</developerConnection>
+		<tag>HEAD</tag>
+		<url>https://github.com/imagej/</url>
+	</scm>
+	<issueManagement>
+		<system>GitHub Issues</system>
+		<url>https://github.com/imagej/</url>
+	</issueManagement>
+	<ciManagement>
+		<system>None</system>
+	</ciManagement>
+
+	<properties>
+		<package-name>com.mycompany.imagej</package-name>
+		<main-class>com.mycompany.imagej.GaussFiltering</main-class>
+		<license.licenseName>bsd_2</license.licenseName>
+		<license.copyrightOwners>My Company, Inc.</license.copyrightOwners>
+	</properties>
+  
+</project>

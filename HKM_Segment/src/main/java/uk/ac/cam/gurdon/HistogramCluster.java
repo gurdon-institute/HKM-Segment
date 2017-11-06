@@ -1,3 +1,4 @@
+package uk.ac.cam.gurdon;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -132,7 +133,7 @@ private int k;
 			}
 			k = means.length;
 		}
-	}catch(Exception e){IJ.log(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}	
+	}catch(Exception e){System.out.print(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}	
 		return means;
 	}
 

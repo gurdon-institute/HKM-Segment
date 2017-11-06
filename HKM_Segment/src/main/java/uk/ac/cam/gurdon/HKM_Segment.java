@@ -1,3 +1,4 @@
+package uk.ac.cam.gurdon;
 import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -7,6 +8,8 @@ import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -23,6 +26,11 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
+import org.scijava.command.Command;
+import org.scijava.plugin.Plugin;
+
 import ij.IJ;
 import ij.ImagePlus;
 import ij.Macro;
@@ -36,6 +44,7 @@ import ij.gui.TextRoi;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
 import ij.plugin.Duplicator;
+import ij.plugin.HyperStackConverter;
 import ij.plugin.PlugIn;
 import ij.plugin.RoiEnlarger;
 import ij.plugin.filter.ThresholdToSelection;
@@ -44,9 +53,11 @@ import ij.plugin.frame.RoiManager;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ij.process.ImageStatistics;
+import net.imagej.ImageJ;
 
 
-public class HKM_Segment implements PlugIn{
+@Plugin(type = Command.class, menuPath = "Plugins>HKM Segment")
+public class HKM_Segment implements Command{
 	
 private JFrame gui, helpFrame;
 private CardLayout card;
@@ -119,7 +130,7 @@ private static final String helpText = "<html>"+
 "<li>1) Dufour A, Meas-Yedid V, Grassart A, and Olivo-Marin JC, \"Automated Quantification of Cell Endocytosis Using Active Contours and Wavelet\", Proc. ICPR 2008, Tampa, FL, USA.</li>"+
 "<li>2) de Chaumont F, Dallongeville S, Chenouard N et al. \"Icy: an open bioimage informatics platform for extended reproducible research\" Nature Methods. 2012;9(7):690-696. doi:10.1038/nmeth.2075.</li>"+
 "</ul>"+
-"<p style='font-size:8px;font-style:italic;'>Copyright 2016, Richard Butler<br>"+
+"<p style='font-size:8px;font-style:italic;'>Copyright 2016, 2017 Richard Butler<br>"+
 "HKM Segment is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. HKM Segment is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.<br>"+
 "You should have received a copy of the GNU General Public License along with HKM Segment.  If not, see http://www.gnu.org/licenses/.</p>"+
 "</body>"+
@@ -707,7 +718,8 @@ private static final String helpText = "<html>"+
 		}
 	}	
 	
-	public void run(String runarg){
+	public void run(){
+System.out.println("rrr");
 	try{
 		if(IJ.isMacro()){
 			String args = Macro.getOptions();
@@ -741,6 +753,19 @@ private static final String helpText = "<html>"+
 			showGui();
 		}
 	}catch(Exception e){IJ.log(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
+	}
+	
+	public static void main(String[] arg){
+		final ij.ImageJ ij = new ij.ImageJ();
+		ImagePlus image = new ImagePlus("E:\\test data\\DAPI1.tif");
+		image.show();
+		ij.addWindowListener(new WindowAdapter(){
+			public void windowClosing(WindowEvent we){
+				System.exit(1);
+			}
+		});
+		
+		new HKM_Segment().run();
 	}
 	
 }
