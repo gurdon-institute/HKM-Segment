@@ -4,6 +4,7 @@ import java.awt.Component;
 import java.awt.Rectangle;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -22,6 +23,7 @@ import ij.gui.Overlay;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
 import ij.gui.TextRoi;
+import ij.macro.Interpreter;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
 import ij.plugin.Duplicator;
@@ -37,11 +39,6 @@ import ij.process.ImageStatistics;
 @Plugin(type = Command.class, menuPath = "Plugins>HKM Segment")
 public class HKM_Segment implements Command{
 	
-
-private static final String[] methods = {"None", "Huang", "IsoData", "Li", "MaxEntropy",
-										 "Mean", "Minimum", "Moments", "Otsu", "Percentile", 
-										 "RenyiEntropy", "Shanbhag", "Triangle", "Yen" };
-
 HKMConfig config = new HKMConfig();
 ImagePlus imp;
 
@@ -64,21 +61,25 @@ private double[] means;
 private ArrayList<Roi> cells;
 
 private HKMGUI gui;
+HKMParams params;
+private String macroArgs;
 
 private TargetTable target;
 
 	public HKM_Segment(){
+		macroArgs = Macro.getOptions();
 		setImage();
 	}
 	
 	public HKM_Segment(ImagePlus image){
+		macroArgs = Macro.getOptions();
 		setImage(image);
 	}
 	
 	private void record(){
 		Recorder.getInstance();
 		if(Recorder.record){
-			String args = "startK="+gui.startK+" blur="+gui.sigma+" minR="+gui.minR+" maxR="+gui.maxR+" threshold="+gui.thresholdMethod+" watershed="+gui.watershed;
+			String args = "startK="+params.startK+" blur="+params.sigma+" minR="+params.minR+" maxR="+params.maxR+" threshold="+params.thresholdMethod+" watershed="+params.watershed;
 			String rec = "run(\"HKM Segment\", \""+args+"\");\n";
 			Recorder.recordString(rec);
 		}
@@ -109,6 +110,7 @@ private TargetTable target;
 		Vunit = " ("+unit+"\u00B3)";
 		imp.setOverlay(null);
 		imp.killRoi();
+		IJ.run(imp, "Options...", "iterations=1 count=1 black");
 		return true;
 	}
 	
@@ -130,7 +132,7 @@ private TargetTable target;
 		}
 		int channel = imp.getC();
 		proc = new Duplicator().run(imp, channel, channel, start, end, 1, 1);
-		IJ.run(proc, "Gaussian Blur...", "sigma="+gui.sigma+" scaled stack");
+		IJ.run(proc, "Gaussian Blur...", "sigma="+params.sigma+" scaled stack");
 	}
 	
 	private ArrayList<Roi> extractObjects(boolean preview){
@@ -147,8 +149,8 @@ private TargetTable target;
 			int channel = imp.getC();
 			boolean[] usedMean = new boolean[means.length];
 			threshold = -1d;
-			if(!gui.thresholdMethod.equals("None")){
-				IJ.setAutoThreshold(proc, gui.thresholdMethod+" dark stack");
+			if(!params.thresholdMethod.equals("None")){
+				IJ.setAutoThreshold(proc, params.thresholdMethod+" dark stack");
 				threshold = proc.getProcessor().getMinThreshold();
 			}
 
@@ -173,7 +175,7 @@ private TargetTable target;
 						continue;
 					}
 					ImagePlus maskimp = new ImagePlus("mask", mask);
-					if(gui.watershed){
+					if(params.watershed){
 						IJ.run(maskimp, "Watershed", "");
 					}
 					if(mask.getStatistics().mean==0) continue;
@@ -188,10 +190,10 @@ private TargetTable target;
 						Roi[] split = new ShapeRoi(roi).getRois();
 						for(int ri=0;ri<split.length;ri++){
 							Roi r = split[ri];
-							int ed = (int)Math.floor(gui.minR/4/pixW)+1;
+							int ed = (int)Math.floor(params.minR/4d/pixW)+1;
 							int blurAdjust = 0;
-							if(gui.sigma>pixW){
-								blurAdjust = (int)Math.floor(gui.sigma/pixW);
+							if(params.sigma>pixW){
+								blurAdjust = (int)Math.floor(params.sigma/pixW);
 							}
 
 							boolean tooSmall = false;
@@ -214,7 +216,7 @@ private TargetTable target;
 							if(outip.getStatistics().mean > 0){ //already added
 								continue;
 							}
-							if( procStats.area>=gui.minA && procStats.area<=gui.maxA && procStats.mean>=threshold ){
+							if( procStats.area>=params.minA && procStats.area<=params.maxA && procStats.mean>=threshold ){
 								r.setPosition(z);
 								r.setStroke(config.stroke);
 								if(Z==1&&C>1){r.setPosition(channel);}
@@ -227,7 +229,7 @@ private TargetTable target;
 								procip.fill(r); //remove from the thresholding image (black)
 								usedMean[m] = true;
 							}
-							else if(gui.showBad){
+							else if(params.showBad){
 								Roi bad = r;
 								bad.setPosition(1, z, 1);
 								bad.setStroke(config.dottedStroke);
@@ -251,7 +253,7 @@ private TargetTable target;
 			if(k==0){
 				IJ.error("HKM Segment", "No objects found.\nTry increasing K and setting blur radius to half the minimum radius.");
 			}
-			if(gui.showOverlay) imp.setOverlay(ol);
+			if(params.showOverlay) imp.setOverlay(ol);
 		}
 		catch(ArrayIndexOutOfBoundsException oob){
 			System.out.print(oob.toString()+" in extractObjects\n~~~~~\n"+Arrays.toString(oob.getStackTrace()).replace(",","\n"));
@@ -261,6 +263,7 @@ private TargetTable target;
 	}
 	
 	private void output(ArrayList<Object3D> objects){
+			if(!params.showResults) return;
 		try{
 			if(imp.getWindow()!=null){	//won't have an ImageWindow if called from a batch mode macro
 				imp.getWindow().setVisible(false);	
@@ -367,33 +370,7 @@ private TargetTable target;
 		return d;
 	}
 	
-	boolean validParameters(){
-		if(gui.startK<2){
-			IJ.error("HKM Segment", "Starting K should be at least 2.");
-			return false;
-		}
-		if(gui.startK>256){
-			IJ.error("HKM Segment", "Starting K should be no greater than 256");
-			return false;
-		}
-		if(gui.sigma<0){
-			IJ.error("HKM Segment", "Blur Radius cannot be negative.");
-			return false;
-		}
-		if(gui.minR<0||gui.maxR<0){
-			IJ.error("HKM Segment", "Object radius cannot be negative.");
-			return false;
-		}
-		if(gui.minR>=gui.maxR){
-			IJ.error("HKM Segment", "Minimum radius should be smaller than maximum radius.");
-			return false;
-		}
-		if(!Arrays.asList(methods).contains(gui.thresholdMethod)){
-			IJ.error("HKM Segment", "Unknown thresholding method : "+gui.thresholdMethod);
-			return false;
-		}
-		return true;
-	}
+
 	
 	double measureRoi(double current){
 		Roi roi = imp.getRoi();
@@ -414,14 +391,16 @@ private TargetTable target;
 		return size;
 	}
 	
-	public void segment(){
-		segment(false, false);
+	public void segment(HKMParams params){
+		segment(params, false, false);
 	}
 	
-	void segment(final boolean preview, final boolean isMacro){
+	public void segment(HKMParams params, final boolean preview, final boolean isMacro){
 		try{
-			if(!setImage()){return;}
-			if(!isMacro){ gui.card.show(gui.getContentPane(), "working"); }
+			if(imp==null){
+				if(!setImage()){return;}
+			}
+			if(!isMacro&&gui.card!=null){ gui.card.show(gui.getContentPane(), "working"); }
 			
 			if(imp.getBitDepth()==32){
 				IJ.error("32-bit images are not supported.");
@@ -431,25 +410,28 @@ private TargetTable target;
 				IJ.error("Time series are not supported.");
 				return;
 			}
+			
+			this.params = params;
+			
 			if(!preview && !isMacro){ record(); }
 			processImage(preview);
 			HistogramCluster hc = new HistogramCluster(proc);
 			//if(true){proc.show();return;}
-			int minN = (int)Math.ceil(gui.minA/pixW/pixW);
-			means = hc.getLevels(gui.startK, minN);
+			int minN = (int)Math.ceil(params.minA/pixW/pixW);
+			means = hc.getLevels(params.startK, minN);
 			if(means.length<1){IJ.error("Clusters could not be separated. Try decreasing the minimum radius.");return;}
 			previewColours = ColourSets.heatmap(hc.getK());
 		//long time0 = System.nanoTime();
 			extractObjects(preview);
 		//System.out.println( "extractObjects "+((System.nanoTime()-time0)/1000000000f)+" sec" );			
 			if(!preview){
-				double join = gui.maxR;
-				Volumiser vol = new Volumiser(imp, join, gui.minV);
+				double join = params.maxR;
+				Volumiser vol = new Volumiser(imp, join, params.minV);
 				ArrayList<Object3D> o3d = vol.getVolumes( cells );
 				output(o3d);
 			}
 			
-			if(isMacro){
+			if(isMacro&&params.showResults){
 				/*IJ.run("ROI Manager...", "");
 				RoiManager rm = RoiManager.getInstance();	//fubar in IJ2
 				if(rm==null){
@@ -462,64 +444,88 @@ private TargetTable target;
 					olRoi.setPosition(0);	//remove position info
 					rm.addRoi(olRoi);
 				}
+				rm.setVisible(true);
 			}
 			
 		}catch(Exception e){System.out.println(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
 		finally{
-			if(!isMacro){ gui.card.show(gui.getContentPane(), "main"); }
+			if(!isMacro&&gui.card!=null){ gui.card.show(gui.getContentPane(), "main"); }
 		}
 	}	
 	
 	public void run(){
+		run("");
+	}
+	
+	public void run(String arg){
 	try{
 		if(IJ.isMacro()){
-			String args = Macro.getOptions();
-			if(args.length()>0){
-				String[] params = args.split(" ");
-				for(String param : params ){
-					String[] kv = param.split("=");
-					if(kv[0].equals("startK")){ gui.startK = getInt(kv[1]); }
-					else if(kv[0].equals("blur")){ gui.sigma = getDouble(kv[1]); }
-					else if(kv[0].equals("minR")){ gui.minR = getDouble(kv[1]); }
-					else if(kv[0].equals("maxR")){ gui.maxR = getDouble(kv[1]); }
-					else if(kv[0].equals("threshold")){  gui.thresholdMethod = kv[1]; }
-					else if(kv[0].equals("watershed")){  gui.watershed = Boolean.valueOf(kv[1]);}
+			
+			if(macroArgs!=null&&macroArgs.length()>0){
+				String[] args = macroArgs.split(" ");
+				params = new HKMParams();
+				for(String m : args ){
+					String[] kv = m.split("=");
+					if(kv[0].equals("startK")){ params.startK = getInt(kv[1]); }
+					else if(kv[0].equals("blur")){ params.sigma = getDouble(kv[1]); }
+					else if(kv[0].equals("minR")){ params.minR = getDouble(kv[1]); }
+					else if(kv[0].equals("maxR")){ params.maxR = getDouble(kv[1]); }
+					else if(kv[0].equals("threshold")){  params.thresholdMethod = kv[1]; }
+					else if(kv[0].equals("watershed")){  params.watershed = Boolean.valueOf(kv[1]);}
 					else if(kv[0].length()>0){
 						IJ.error("HKM Segment", "Unknown argument: "+kv[0]);
 						return;
 					}
 				}
-				if(!validParameters()){return;}
-				gui.minA = Math.PI*(gui.minR*gui.minR);
+				if(!params.isValid()){return;}
+				params.minA = Math.PI*(params.minR*params.minR);
 				if(Z>1){
-					gui.minV = (4d/3d)*Math.PI*(gui.minR*gui.minR*gui.minR);
+					params.minV = (4d/3d)*Math.PI*(params.minR*params.minR*params.minR);
 				}
-				else{ gui.minV = gui.minA; }
-				gui.maxA = Math.PI*(gui.maxR*gui.maxR);
+				else{ params.minV = params.minA; }
+				params.maxA = Math.PI*(params.maxR*params.maxR);
 			}
-			gui.showBad = false;	//don't show rejected objects when called from a macro
-			segment(false, true);
+			else{
+				gui = new HKMGUI(this);
+				return;
+			}
+			params.showBad = false;	//don't show rejected objects when called from a macro
+			segment(params, false, true);
 		}
 		else{
-			//showGui();
 			gui = new HKMGUI(this);
 		}
 	}catch(Exception e){System.out.println(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
 	}
 	
-	public static void main(String[] arg){
-		final ij.ImageJ ij = new ij.ImageJ();
-		ImagePlus image = new ImagePlus("E:\\test data\\DAPI1.tif");
-		image.show();
-		ij.addWindowListener(new WindowAdapter(){
-			public void windowClosing(WindowEvent we){
-				System.exit(1);
-			}
-		});
+	public ArrayList<Roi> run(ImagePlus imp,int startK,double sigma,double minR,double maxR,String thresholdMethod,boolean watershed,boolean showResults){
 		
-		new HKM_Segment().run();
+		setImage(imp);
+		
+		params = new HKMParams();
+		params.startK = startK;
+		params.sigma = sigma;
+		params.minR = minR;
+		params.maxR = maxR;
+		params.thresholdMethod = thresholdMethod;
+		params.watershed = watershed;
+		if(params.isValid()){return null;}
+		params.minA = Math.PI*(params.minR*params.minR);
+		
+		if(Z>1){
+			params.minV = (4d/3d)*Math.PI*(params.minR*params.minR*params.minR);
+		}
+		else{ params.minV = params.minA; }
+		params.maxA = Math.PI*(params.maxR*params.maxR);
+		params.showBad = false;	//don't show rejected objects
+		
+		params.showResults = showResults;
+		
+		segment(params, false, false);
+		
+		return cells;
 	}
-
+	
 	public void targeter() {
 		if(imp==null||results==null){
 			IJ.error("HKM_Segment", "This function highlights the location of the selected results table object in the current image.");
@@ -538,6 +544,24 @@ private TargetTable target;
 		else{
 			imp.setOverlay(null);
 		}
+	}
+	
+	public ResultsTable getResultsTable(){
+		return results;
+	}
+	
+	public static void main(String[] arg){
+		final ij.ImageJ ij = new ij.ImageJ();
+		ImagePlus image = new ImagePlus("E:\\Heleene\\C1-slice-test1.tif");
+		image.show();
+		ij.addWindowListener(new WindowAdapter(){
+			public void windowClosing(WindowEvent we){
+				System.exit(1);
+			}
+		});
+		
+		new HKM_Segment().run(); //show GUI
+		//new HKM_Segment().run(8, 0.2, 2, 4, "Huang", true, false); //pass parameters
 	}
 	
 }

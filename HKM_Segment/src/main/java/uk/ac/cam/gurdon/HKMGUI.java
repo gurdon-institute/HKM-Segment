@@ -34,14 +34,8 @@ public class HKMGUI extends JFrame {
 	private JTextField kField, blurField, minField, maxField;
 	private JCheckBox watershedTick, badTick, overlayToggle;
 	private JButton previewButton, okButton, cancelButton, targetButton, helpButton, minMeasureButton, maxMeasureButton, configButton;
-	private static final String[] methods = {"None", "Huang", "IsoData", "Li", "MaxEntropy",
-											 "Mean", "Minimum", "Moments", "Otsu", "Percentile", 
-											 "RenyiEntropy", "Shanbhag", "Triangle", "Yen" };
 	private JComboBox<String> thresholdCombo;
-
-	double minA, maxA, minV;
-	int W, H, C, Z, k;
-	boolean showOverlay = true;
+	
 	private static final String helpText = "<html>"+
 	"<head>"+
 	"<style>"+
@@ -65,7 +59,7 @@ public class HKMGUI extends JFrame {
 	"<h4>HKM Segment</h4>"+
 	"<p>"+
 	"HKM Segment for ImageJ is inspired by Alexandre Dufour's Hierarchical K-Means segmentation algorithm [1], available in icy [2]. In this implementation, agglomerative K-Means clustering is applied to the image histogram to determine K threshold levels, which are applied in ascending order to extract objects within the specified size range set as radii.<br>"+
-	"The Watershed transform can be applied to the intermediate binary images, and a thresholding algorithm can be chosen to filter out objects of low intensity, giving robust results in biological images without requiring subsequent level-sets segmentation. When object have been extracted, they are clustered in 3D to reconstruct objects based on the specified size range.<br>"+
+	"The Watershed transform can be applied to the intermediate binary images, and a thresholding algorithm can be chosen to filter out objects of low intensity, giving robust results in biological images without requiring subsequent level-sets segmentation. When objects have been extracted, they are further clustered to reconstruct 3D objects based on the specified size range.<br>"+
 	"When run on a multi-channel stack, objects are mapped in the currently displayed channel and measured in all channels. Select a row in the results table and press the \"target\" button to highlight the object location in the image. "+
 	"</p>"+
 	"<ul>"+
@@ -80,22 +74,14 @@ public class HKMGUI extends JFrame {
 	"<li>1) Dufour A, Meas-Yedid V, Grassart A, and Olivo-Marin JC, \"Automated Quantification of Cell Endocytosis Using Active Contours and Wavelet\", Proc. ICPR 2008, Tampa, FL, USA.</li>"+
 	"<li>2) de Chaumont F, Dallongeville S, Chenouard N et al. \"Icy: an open bioimage informatics platform for extended reproducible research\" Nature Methods. 2012;9(7):690-696. doi:10.1038/nmeth.2075.</li>"+
 	"</ul>"+
-	"<p style='font-size:8px;font-style:italic;'>Copyright 2016, 2017 Richard Butler<br>"+
+	"<p style='font-size:8px;font-style:italic;'>Copyright 2016-2018 Richard Butler<br>"+
 	"HKM Segment is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. HKM Segment is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.<br>"+
 	"You should have received a copy of the GNU General Public License along with HKM Segment.  If not, see http://www.gnu.org/licenses/.</p>"+
 	"</body>"+
 	"</html>";
 	
-	double minR = Prefs.get("HKM_Segment.minR", 5.0);
-	double maxR = Prefs.get("HKM_Segment.maxR", 30.0);
-	double sigma = Prefs.get("HKM_Segment.sigma", 0.0);
-	int startK = (int)Prefs.get("HKM_Segment.startK", 10);
-	String thresholdMethod = Prefs.get("HKM_Segment.thresholdMethod", "None");
-	boolean watershed = Prefs.get("HKM_Segment.watershed", false);
-	boolean showBad = Prefs.get("HKM_Segment.showBad", true);
-	
+	private HKMParams params = new HKMParams();
 	private HKM_Segment parent;
-	
 	
 	public HKMGUI(HKM_Segment hkm){
 		super("HKM Segment");
@@ -108,31 +94,31 @@ public class HKMGUI extends JFrame {
 						return;
 					}
 					if (ae.getSource()==minMeasureButton){
-						double roiL = parent.measureRoi(minR);
+						double roiL = parent.measureRoi(params.minR);
 						minField.setText( String.format("%.2f",roiL) );
 						return;
 					}
 					else if (ae.getSource()==maxMeasureButton){
-						double roiL = parent.measureRoi(maxR);
+						double roiL = parent.measureRoi(params.maxR);
 						maxField.setText(String.format("%.2f",roiL));
 						return;
 					}
 					
-					getParams();
+					params = getParams();
 					
-					if(!parent.validParameters()){return;}
+					if(!params.isValid()){return;}
 					
-					minA = Math.PI*(minR*minR);
-					if(Z>1){
-						minV = (4d/3d)*Math.PI*(minR*minR*minR);
+					params.minA = Math.PI*(params.minR*params.minR);
+					if(params.Z>1){
+						params.minV = (4d/3d)*Math.PI*(params.minR*params.minR*params.minR);
 					}
-					else{ minV = minA*parent.pixD; }
-					maxA = Math.PI*(maxR*maxR);
+					else{ params.minV = params.minA*parent.pixD; }
+					params.maxA = Math.PI*(params.maxR*params.maxR);
 					if(ae.getSource()==previewButton){
 						Runnable run = new Runnable(){
 							public void run(){
 								try{
-									parent.segment(true, false);
+									parent.segment(params, true, false);
 								}catch(Exception e){IJ.log(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
 							}
 						};
@@ -142,7 +128,7 @@ public class HKMGUI extends JFrame {
 						Runnable run = new Runnable(){
 							public void run(){
 								try{
-									parent.segment(false, false);
+									parent.segment(params, false, false);
 									setPrefs();
 								}catch(Exception e){IJ.log(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
 							}
@@ -168,8 +154,8 @@ public class HKMGUI extends JFrame {
 						parent.config.display();
 					}
 					else if(ae.getSource()==overlayToggle){
-						showOverlay = overlayToggle.isSelected();
-						parent.overlay(showOverlay);
+						params.showOverlay = overlayToggle.isSelected();
+						parent.overlay(params.showOverlay);
 					}
 				}
 			};
@@ -183,24 +169,24 @@ public class HKMGUI extends JFrame {
 			JPanel logoPanel = new JPanel();
 			logoPanel.add(new JLabel(new ImageIcon(Toolkit.getDefaultToolkit().getImage(getClass().getResource("logo_borded_336x104.gif")))));
 			main.add(logoPanel);
-			kField = new JTextField(""+startK, 3);
+			kField = new JTextField(""+params.startK, 3);
 			main.add(HKM_Segment.guiPanel("Starting K:", kField));
-			blurField = new JTextField(""+sigma, 3);
+			blurField = new JTextField(""+params.sigma, 3);
 			main.add(HKM_Segment.guiPanel("Blur Radius:", blurField, parent.unit));
-			minField = new JTextField(""+minR, 6);
-			maxField = new JTextField(""+maxR, 6);
+			minField = new JTextField(""+params.minR, 6);
+			maxField = new JTextField(""+params.maxR, 6);
 			minMeasureButton = new MButton(MButton.Type.MEASURE);
 			minMeasureButton.addActionListener(listener);
 			maxMeasureButton = new MButton(MButton.Type.MEASURE);
 			maxMeasureButton.addActionListener(listener);
 			main.add(HKM_Segment.guiPanel("Object Radius",minField, minMeasureButton, "to", maxField, maxMeasureButton, parent.unit));
-			thresholdCombo = new JComboBox<String>(methods);
-			thresholdCombo.setSelectedItem(thresholdMethod);
+			thresholdCombo = new JComboBox<String>(HKMParams.methods);
+			thresholdCombo.setSelectedItem(params.thresholdMethod);
 			main.add(HKM_Segment.guiPanel("Threshold:", thresholdCombo));
 			JPanel tickPanel = new JPanel();
-			watershedTick = new JCheckBox("Watershed", watershed);
+			watershedTick = new JCheckBox("Watershed", params.watershed);
 			tickPanel.add(watershedTick);
-			badTick = new JCheckBox("Show Rejected Objects", showBad);
+			badTick = new JCheckBox("Show Rejected Objects", params.showBad);
 			tickPanel.add(badTick);
 			main.add(tickPanel);
 			previewButton = new JButton("Preview");
@@ -216,7 +202,7 @@ public class HKMGUI extends JFrame {
 			helpButton.addActionListener(listener);
 			
 			JPanel optionPanel = new JPanel();
-			overlayToggle = new JCheckBox("Show Overlay", showOverlay);
+			overlayToggle = new JCheckBox("Show Overlay", params.showOverlay);
 			overlayToggle.addActionListener(listener);
 			optionPanel.add(overlayToggle);
 			configButton = new MButton(MButton.Type.CONFIG);
@@ -245,24 +231,25 @@ public class HKMGUI extends JFrame {
 	
 }
 	
-	private void getParams() {
-		startK = HKM_Segment.getInt(kField.getText());
-		sigma = HKM_Segment.getDouble(blurField.getText());
-		minR = HKM_Segment.getDouble(minField.getText());
-		maxR = HKM_Segment.getDouble(maxField.getText());
-		thresholdMethod = (String)thresholdCombo.getSelectedItem();
-		watershed = watershedTick.isSelected();
-		showBad = badTick.isSelected();
+	public HKMParams getParams() {
+		params.startK = HKM_Segment.getInt(kField.getText());
+		params.sigma = HKM_Segment.getDouble(blurField.getText());
+		params.minR = HKM_Segment.getDouble(minField.getText());
+		params.maxR = HKM_Segment.getDouble(maxField.getText());
+		params.thresholdMethod = (String)thresholdCombo.getSelectedItem();
+		params.watershed = watershedTick.isSelected();
+		params.showBad = badTick.isSelected();
+		return params;
 	}
 
 	private void setPrefs() {
-		Prefs.set("HKM_Segment.minR", minR);
-		Prefs.set("HKM_Segment.maxR", maxR);
-		Prefs.set("HKM_Segment.sigma", sigma);
-		Prefs.set("HKM_Segment.startK", startK);
-		Prefs.set("HKM_Segment.thresholdMethod", thresholdMethod);
-		Prefs.set("HKM_Segment.watershed", watershed);
-		Prefs.set("HKM_Segment.showBad", showBad);
+		Prefs.set("HKM_Segment.minR", params.minR);
+		Prefs.set("HKM_Segment.maxR", params.maxR);
+		Prefs.set("HKM_Segment.sigma", params.sigma);
+		Prefs.set("HKM_Segment.startK", params.startK);
+		Prefs.set("HKM_Segment.thresholdMethod", params.thresholdMethod);
+		Prefs.set("HKM_Segment.watershed", params.watershed);
+		Prefs.set("HKM_Segment.showBad", params.showBad);
 	}
 	
 }
