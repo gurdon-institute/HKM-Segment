@@ -14,6 +14,7 @@ import org.scijava.command.Command;
 import org.scijava.plugin.Plugin;
 
 import ij.IJ;
+import ij.ImageJ;
 import ij.ImagePlus;
 import ij.Macro;
 import ij.WindowManager;
@@ -214,7 +215,13 @@ private TargetTable target;
 							if(outip.getStatistics().mean > 0){ //already added
 								continue;
 							}
-							if( procStats.area>=params.minA && procStats.area<=params.maxA && procStats.mean>=threshold ){
+							double circularity = 100d;
+							if (params.circ > 0){	//only calculate if needed
+								double perim = r.getLength() * cal.pixelWidth;
+								double area = procStats.area;
+								circularity = 4*Math.PI*(area/(perim*perim));
+							}
+							if( procStats.area>=params.minA && procStats.area<=params.maxA && procStats.mean>=threshold && circularity>=params.circ ){
 								r.setPosition(z);
 								r.setStroke(config.stroke);
 								if(Z==1&&C>1){r.setPosition(channel);}
@@ -469,6 +476,7 @@ private TargetTable target;
 					else if(kv[0].equals("minR")){ params.minR = getDouble(kv[1]); }
 					else if(kv[0].equals("maxR")){ params.maxR = getDouble(kv[1]); }
 					else if(kv[0].equals("threshold")){  params.thresholdMethod = kv[1]; }
+					else if(kv[0].equals("circularity")){  params.circ = getDouble(kv[1]); }
 					else if(kv[0].equals("watershed")){  params.watershed = Boolean.valueOf(kv[1]);}
 					else if(kv[0].length()>0){
 						IJ.error("HKM Segment", "Unknown argument: "+kv[0]);
@@ -496,7 +504,7 @@ private TargetTable target;
 	}catch(Exception e){System.out.println(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
 	}
 	
-	public ArrayList<Roi> run(ImagePlus imp,int startK,double sigma,double minR,double maxR,String thresholdMethod,boolean watershed,boolean showResults){
+	public ArrayList<Roi> run(ImagePlus imp,int startK,double sigma,double minR,double maxR,String thresholdMethod,double circ,boolean watershed,boolean showResults){
 		try{
 			setImage(imp);
 
@@ -506,6 +514,7 @@ private TargetTable target;
 			params.minR = minR;
 			params.maxR = maxR;
 			params.thresholdMethod = thresholdMethod;
+			params.circ = circ;
 			params.watershed = watershed;
 			if(!params.isValid()){
 				return null;
@@ -523,7 +532,7 @@ private TargetTable target;
 	
 			segment(params, false, false);
 
-			IJ.log("S "+(cells==null));
+			//IJ.log("S "+(cells==null));
 		}catch(Exception e){System.out.println(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
 		return cells;
 	}
@@ -553,7 +562,7 @@ private TargetTable target;
 	}
 	
 	public static void main(String[] arg){
-		final ij.ImageJ ij = new ij.ImageJ();
+		/*final ij.ImageJ ij = new ij.ImageJ();
 		ImagePlus image = new ImagePlus("E:\\Heleen\\180606 engrafted ntng basal cells trachea.lif - T_N_1R_40X_1.tif");
 		image.show();
 		ij.addWindowListener(new WindowAdapter(){
@@ -561,11 +570,16 @@ private TargetTable target;
 				System.exit(1);
 			}
 		});
+		ArrayList<Roi> list = new HKM_Segment().run(image, 16, 0.2, 2.5, 5, "Huang", 0.0, true, false); //pass parameters
+		IJ.log("n = "+list.size());*/
 		
-		//new HKM_Segment().run(); //show GUI
-
-		ArrayList<Roi> list = new HKM_Segment().run(image, 16, 0.2, 2.5, 5, "Huang", true, false); //pass parameters
-		IJ.log("n = "+list.size());
+		ImageJ.main(arg);
+		
+		ImagePlus image = new ImagePlus("E:\\Patricia\\1. CC1 LSM examples for markers for Richard_2019.09.15\\1_200_org2_C1_smalltest.tif");
+		image.show();
+		
+		new HKM_Segment().run();
+		
 	}
 	
 }

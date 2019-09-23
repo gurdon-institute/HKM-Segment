@@ -19,7 +19,8 @@ public class HKMParams {
 	double minR = Prefs.get("HKM_Segment.minR", 5.0);
 	double maxR = Prefs.get("HKM_Segment.maxR", 30.0);
 	double sigma = Prefs.get("HKM_Segment.sigma", 0.0);
-	int startK = (int)Prefs.get("HKM_Segment.startK", 10);
+	double circ = Prefs.get("HKM_Segment.circ", 0.0);
+	int startK = (int)Prefs.get("HKM_Segment.startK", 8);
 	String thresholdMethod = Prefs.get("HKM_Segment.thresholdMethod", "None");
 	boolean watershed = Prefs.get("HKM_Segment.watershed", false);
 	boolean showBad = Prefs.get("HKM_Segment.showBad", true);
@@ -46,6 +47,10 @@ public class HKMParams {
 		}
 		if(minR>=maxR){
 			IJ.error("HKM Segment", "Minimum radius should be smaller than maximum radius.");
+			return false;
+		}
+		if(circ<0||circ>1){
+			IJ.error("HKM Segment", "Minimum circularity should be 0-1.");
 			return false;
 		}
 		if((!thresholdMethod.equals("None")) && !Arrays.asList(methods).contains(thresholdMethod)){

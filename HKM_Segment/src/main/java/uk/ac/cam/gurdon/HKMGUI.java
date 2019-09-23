@@ -31,7 +31,7 @@ public class HKMGUI extends JFrame {
 	
 	private JFrame helpFrame;
 	CardLayout card;
-	private JTextField kField, blurField, minField, maxField;
+	private JTextField kField, blurField, minField, maxField, circField;
 	private JCheckBox watershedTick, badTick, overlayToggle;
 	private JButton previewButton, okButton, cancelButton, targetButton, helpButton, minMeasureButton, maxMeasureButton, configButton;
 	private JComboBox<String> thresholdCombo;
@@ -67,6 +67,7 @@ public class HKMGUI extends JFrame {
 	"<li><b>Blur Radius</b> - the sigma value of the Gaussian blur applied to the image before segmentation. Set to 0 to disable.</li>"+
 	"<li><b>Object Radius</b> - the radius range of objects to be detected, used to calculate areas in 2D and volumes in 3D assuming circular and spherical objects respectively.</li>"+
 	"<li><b>Threshold</b> - the automatic thresholding algorithm used to determine the required mean object intensity for inclusion.</li>"+
+	"<li><b>Min. Circularity</b> - the minimum circularity required. 0 allows all shapes, 1 is a perfect circle.</li>"+
 	"<li><b>Watershed</b> - apply the 2D Watershed transform to the binary image at each intensity level.</li>"+
 	"<li><b>Show Rejected Objects</b> - show objects that were detected but do not meet the filtering criteria. Useful when testing parameters to see what is being excluded.</li>"+
 	"</ul>"+
@@ -182,7 +183,9 @@ public class HKMGUI extends JFrame {
 			main.add(HKM_Segment.guiPanel("Object Radius",minField, minMeasureButton, "to", maxField, maxMeasureButton, parent.unit));
 			thresholdCombo = new JComboBox<String>(HKMParams.methods);
 			thresholdCombo.setSelectedItem(params.thresholdMethod);
-			main.add(HKM_Segment.guiPanel("Threshold:", thresholdCombo));
+			circField = new JTextField(""+params.circ, 3);
+			main.add(HKM_Segment.guiPanel("Threshold:", thresholdCombo, " ", "Min. Circularity:", circField));
+			
 			JPanel tickPanel = new JPanel();
 			watershedTick = new JCheckBox("Watershed", params.watershed);
 			tickPanel.add(watershedTick);
@@ -237,6 +240,7 @@ public class HKMGUI extends JFrame {
 		params.minR = HKM_Segment.getDouble(minField.getText());
 		params.maxR = HKM_Segment.getDouble(maxField.getText());
 		params.thresholdMethod = (String)thresholdCombo.getSelectedItem();
+		params.circ = HKM_Segment.getDouble(circField.getText());
 		params.watershed = watershedTick.isSelected();
 		params.showBad = badTick.isSelected();
 		return params;
@@ -248,6 +252,7 @@ public class HKMGUI extends JFrame {
 		Prefs.set("HKM_Segment.sigma", params.sigma);
 		Prefs.set("HKM_Segment.startK", params.startK);
 		Prefs.set("HKM_Segment.thresholdMethod", params.thresholdMethod);
+		Prefs.set("HKM_Segment.circ", params.circ);
 		Prefs.set("HKM_Segment.watershed", params.watershed);
 		Prefs.set("HKM_Segment.showBad", params.showBad);
 	}
