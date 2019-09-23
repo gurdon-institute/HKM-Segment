@@ -398,7 +398,7 @@ private TargetTable target;
 			if(imp==null){
 				if(!setImage()){return;}
 			}
-			if(!isMacro&&gui.card!=null){ gui.card.show(gui.getContentPane(), "working"); }
+			if(!isMacro&&gui!=null&&gui.card!=null){ gui.card.show(gui.getContentPane(), "working"); }
 			
 			if(imp.getBitDepth()==32){
 				IJ.error("32-bit images are not supported.");
@@ -421,7 +421,7 @@ private TargetTable target;
 			previewColours = ColourSets.heatmap(hc.getK());
 		//long time0 = System.nanoTime();
 			extractObjects(preview);
-		//System.out.println( "extractObjects "+((System.nanoTime()-time0)/1000000000f)+" sec" );			
+		//System.out.println( "extractObjects "+((System.nanoTime()-time0)/1000000000f)+" sec" );
 			if(!preview){
 				double join = params.maxR;
 				Volumiser vol = new Volumiser(imp, join, params.minV);
@@ -497,30 +497,34 @@ private TargetTable target;
 	}
 	
 	public ArrayList<Roi> run(ImagePlus imp,int startK,double sigma,double minR,double maxR,String thresholdMethod,boolean watershed,boolean showResults){
-		
-		setImage(imp);
-		
-		params = new HKMParams();
-		params.startK = startK;
-		params.sigma = sigma;
-		params.minR = minR;
-		params.maxR = maxR;
-		params.thresholdMethod = thresholdMethod;
-		params.watershed = watershed;
-		if(params.isValid()){return null;}
-		params.minA = Math.PI*(params.minR*params.minR);
-		
-		if(Z>1){
-			params.minV = (4d/3d)*Math.PI*(params.minR*params.minR*params.minR);
-		}
-		else{ params.minV = params.minA; }
-		params.maxA = Math.PI*(params.maxR*params.maxR);
-		params.showBad = false;	//don't show rejected objects
-		
-		params.showResults = showResults;
-		
-		segment(params, false, false);
-		
+		try{
+			setImage(imp);
+
+			params = new HKMParams();
+			params.startK = startK;
+			params.sigma = sigma;
+			params.minR = minR;
+			params.maxR = maxR;
+			params.thresholdMethod = thresholdMethod;
+			params.watershed = watershed;
+			if(!params.isValid()){
+				return null;
+			}
+			params.minA = Math.PI*(params.minR*params.minR);
+
+			if(Z>1){
+				params.minV = (4d/3d)*Math.PI*(params.minR*params.minR*params.minR);
+			}
+			else{ params.minV = params.minA; }
+			params.maxA = Math.PI*(params.maxR*params.maxR);
+			params.showBad = false;	//don't show rejected objects
+			
+			params.showResults = showResults;
+	
+			segment(params, false, false);
+
+			IJ.log("S "+(cells==null));
+		}catch(Exception e){System.out.println(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
 		return cells;
 	}
 	
@@ -550,7 +554,7 @@ private TargetTable target;
 	
 	public static void main(String[] arg){
 		final ij.ImageJ ij = new ij.ImageJ();
-		ImagePlus image = new ImagePlus("E:\\Heleene\\C1-slice-test1.tif");
+		ImagePlus image = new ImagePlus("E:\\Heleen\\180606 engrafted ntng basal cells trachea.lif - T_N_1R_40X_1.tif");
 		image.show();
 		ij.addWindowListener(new WindowAdapter(){
 			public void windowClosing(WindowEvent we){
@@ -558,8 +562,10 @@ private TargetTable target;
 			}
 		});
 		
-		new HKM_Segment().run(); //show GUI
-		//new HKM_Segment().run(8, 0.2, 2, 4, "Huang", true, false); //pass parameters
+		//new HKM_Segment().run(); //show GUI
+
+		ArrayList<Roi> list = new HKM_Segment().run(image, 16, 0.2, 2.5, 5, "Huang", true, false); //pass parameters
+		IJ.log("n = "+list.size());
 	}
 	
 }
