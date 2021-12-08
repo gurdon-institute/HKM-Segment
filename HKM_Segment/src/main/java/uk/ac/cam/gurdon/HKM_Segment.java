@@ -2,8 +2,6 @@ package uk.ac.cam.gurdon;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Rectangle;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -215,7 +213,7 @@ private TargetTable target;
 							if(outip.getStatistics().mean > 0){ //already added
 								continue;
 							}
-							double circularity = 100d;
+							double circularity = Double.MAX_VALUE;
 							if (params.circ > 0){	//only calculate if needed
 								double perim = r.getLength() * cal.pixelWidth;
 								double area = procStats.area;
@@ -575,7 +573,8 @@ private TargetTable target;
 		
 		ImageJ.main(arg);
 		
-		ImagePlus image = new ImagePlus("E:\\Patricia\\1. CC1 LSM examples for markers for Richard_2019.09.15\\1_200_org2_C1_smalltest.tif");
+		//ImagePlus image = new ImagePlus("E:\\Patricia\\1. CC1 LSM examples for markers for Richard_2019.09.15\\1_200_org2_C1_smalltest.tif");
+		ImagePlus image = new ImagePlus("E:\\Francesco+Yan\\3-HKM-1.tif");
 		image.show();
 		
 		new HKM_Segment().run();
