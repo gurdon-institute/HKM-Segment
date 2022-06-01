@@ -340,6 +340,9 @@ private TargetTable target;
 			//if(IJ.isMacro()){ results.show("Results"); }
 			//else{ results.show(imp.getTitle()+"-HKM Segmentation"); }
 			if(!IJ.isMacro()){ results.show(imp.getTitle()+"-HKM Segmentation"); }	//don't show table if run from macro - probably only the Rois needed
+			
+			target = new TargetTable(imp, results);	// make a new targeter on each run
+			
 		}catch(Exception e){System.out.println(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));}
 		finally{ if(imp.getWindow()!=null) imp.getWindow().setVisible(true); }
 	}
@@ -549,10 +552,14 @@ private TargetTable target;
 			IJ.error("HKM_Segment", "This function highlights the location of the selected results table object in the current image.");
 			return;
 		}
-		if(target==null){
+		if(target == null){
 			target = new TargetTable(imp, results);
 		}
-		target.target();
+		try{
+			target.target();
+		}catch(Exception e){
+			System.out.println(e.toString()+"\n~~~~~\n"+Arrays.toString(e.getStackTrace()).replace(",","\n"));
+		}
 	}
 
 	public void overlay(boolean showOverlay) {
