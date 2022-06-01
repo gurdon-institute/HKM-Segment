@@ -104,7 +104,12 @@ private TargetTable target;
 		pixD = cal.pixelDepth;
 		unit = cal.getUnit();
 		if(unit.matches("[Mm]icrons?")){unit = "\u00B5m";}
-		Vunit = " ("+unit+"\u00B3)";
+		if(Z==1){
+			Vunit = " ("+unit+"\u00B2)";
+		}
+		else{
+			Vunit = " ("+unit+"\u00B3)";
+		}
 		imp.setOverlay(null);
 		imp.killRoi();
 		IJ.run(imp, "Options...", "iterations=1 count=1 black");
@@ -307,7 +312,12 @@ private TargetTable target;
 					results.setValue("X", row, obj.centroid.x);
 					results.setValue("Y", row, obj.centroid.y);
 					results.setValue("Z", row, obj.centroid.z);
-					results.setValue("Volume"+Vunit, row, obj.volume);
+					if(Z==1){
+						results.setValue("Area"+Vunit, row, obj.volume/cal.pixelDepth);	// Vunit is units^2 for a single slice
+					}
+					else{
+						results.setValue("Volume"+Vunit, row, obj.volume);
+					}
 					for(int c=1;c<=C;c++){
 						double mean = sum[c]/count[c];
 						results.setValue("C"+c+" Mean", row, mean);
@@ -400,9 +410,8 @@ private TargetTable target;
 	
 	public void segment(HKMParams params, final boolean preview, final boolean isMacro){
 		try{
-			if(imp==null){
-				if(!setImage()){return;}
-			}
+			if(!setImage()){return;}
+
 			if(!isMacro&&gui!=null&&gui.card!=null){ gui.card.show(gui.getContentPane(), "working"); }
 			
 			if(imp.getBitDepth()==32){
